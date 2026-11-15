@@ -1,0 +1,72 @@
+﻿SISTEMA DEL RESTAURANTE - VERSIÓN DE ESCRITORIO
+================================================
+
+Funciona CON o SIN internet. Todo se guarda en el disco de la computadora
+del restaurante, al instante, y se hacen copias de seguridad automáticas.
+
+
+1. INSTALACIÓN (solo una vez, en la computadora del restaurante)
+----------------------------------------------------------------
+a) Instala Node.js (gratis). Necesitas internet solo para este paso:
+   https://nodejs.org/es/download  ->  elige "LTS" para Windows  ->  instala con las opciones normales.
+b) Descomprime este archivo ZIP (clic derecho -> "Extraer todo").
+c) Abre la carpeta y haz doble clic en INSTALAR.bat
+   - Si Windows muestra "Windows protegió su PC": clic en "Más información" -> "Ejecutar de todas formas".
+   - Cuando pida permiso para la red (para los celulares), responde "Sí".
+d) Se abrirá el sistema. Crea tu usuario de ADMINISTRADOR con un PIN de 4 a 8 números.
+   Tu menú (40 platos), mesas, inventario y datos del negocio ya vienen cargados.
+
+Al terminar tendrás:
+- Un icono "Sistema Restaurante" en el escritorio.
+- El sistema arranca solo cada vez que se enciende la computadora.
+- El programa queda en:  C:\Users\<tu usuario>\SistemaRestaurante
+
+
+2. USO DIARIO
+-------------
+- En la computadora: doble clic en "Sistema Restaurante" del escritorio.
+- En celulares/tablets: conéctalos al WiFi del restaurante y abre en el navegador
+  la dirección que aparece en Ajustes -> "Celulares y tablets" (ejemplo: http://192.168.1.50:8080).
+  Tip: guárdala como acceso directo en la pantalla de inicio del celular.
+- Los celulares funcionan aunque no haya internet, siempre que la computadora
+  esté encendida y conectada al mismo WiFi (router).
+- Imprimir factura: botón "Imprimir" (elige tu impresora, también térmica de 80 mm).
+
+
+3. USUARIOS
+-----------
+Ajustes -> Control de acceso -> "+ Agregar usuario".
+- Usuario: mesas, cobrar (contado y crédito), abonos, ver inventario.
+- Administrador: todo (menú, precios, inventario, reportes, cierre, anular, ajustes).
+Para quitarle el acceso a alguien: edítalo y desmarca "Activo".
+
+
+4. RESPALDOS (TUS DATOS)
+------------------------
+- Datos:      SistemaRestaurante\datos\restaurante.db
+- Respaldos:  SistemaRestaurante\respaldos\  (uno al iniciar y cada 2 horas; guarda los últimos 60)
+- MUY RECOMENDADO: guarda también una copia fuera de la computadora (por si se daña o la roban).
+  Abre SistemaRestaurante\config.json con el Bloc de notas y escribe la carpeta, por ejemplo:
+      "carpetaRespaldoExtra": "E:/RespaldosRestaurante"          (memoria USB)
+      "carpetaRespaldoExtra": "C:/Users/TuUsuario/OneDrive/RespaldosRestaurante"   (nube)
+  Usa barras normales  /  . Guarda el archivo y reinicia la computadora.
+- También puedes descargar una copia desde Ajustes -> Respaldos -> "Descargar copia (JSON)".
+
+Para RESTAURAR un respaldo:
+  1) Doble clic en "Detener sistema.bat" (dentro de la carpeta SistemaRestaurante).
+  2) En la carpeta "datos", renombra restaurante.db a restaurante_viejo.db
+     (y borra restaurante.db-wal y restaurante.db-shm si existen).
+  3) Copia el respaldo que quieras desde "respaldos" a "datos" y renómbralo restaurante.db
+  4) Abre el sistema desde el escritorio.
+
+
+5. PROBLEMAS COMUNES
+--------------------
+- Los celulares no conectan: revisa que estén en el mismo WiFi que la computadora y usa la
+  dirección exacta de Ajustes. Si la computadora cambió de red, la dirección puede cambiar.
+  Vuelve a ejecutar INSTALAR.bat y responde "Sí" al permiso de red.
+- "No se pudo iniciar el sistema": revisa que Node.js esté instalado; detalles en datos\consola.log
+- Actualizar el sistema a una versión nueva: descomprime la versión nueva y ejecuta su INSTALAR.bat.
+  Tus datos y respaldos NO se tocan.
+- La computadora debe estar encendida (y sin suspenderse) para que los celulares funcionen.
+  El instalador desactiva la suspensión cuando está conectada a la corriente.
