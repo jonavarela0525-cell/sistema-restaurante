@@ -1,0 +1,61 @@
+{
+ "version": "1.0.0",
+ "publicado": "2026-11-15T13:54:48",
+ "archivos": [
+  {
+   "nombre": "server.js",
+   "sha256": "68feee90e47b4d64b641ccc4c8c8c89bddaa2507c6e89d53742e4be37d727a30",
+   "bytes": 41785
+  },
+  {
+   "nombre": "app.html",
+   "sha256": "94c090ea11163abc5adf2527235904be8b6c20424c7274b55a1f1cb8acd39631",
+   "bytes": 170136
+  },
+  {
+   "nombre": "lanzador.js",
+   "sha256": "707f5d3d216fe340efdac709742032950c0c8797ae540def5a737141f41cf55a",
+   "bytes": 2481
+  },
+  {
+   "nombre": "iniciar.vbs",
+   "sha256": "11179e62cbf3c02517e0123ad3410ebd4840744f52bacc0572aa7e3cea56f60d",
+   "bytes": 2220
+  },
+  {
+   "nombre": "servidor.vbs",
+   "sha256": "65ec4d3fce7d17f81f09b647c6a58701f70db5e059aad252f1e4f047d1ca7906",
+   "bytes": 456
+  },
+  {
+   "nombre": "detener.ps1",
+   "sha256": "e7f252a66af68df33552c48dd8eecd7ef48cf9c259df619a781d1cb5b3f5dc49",
+   "bytes": 1343
+  },
+  {
+   "nombre": "Detener sistema.bat",
+   "sha256": "91d64455674198f55b040cbba6c337cfa37ae00bb0c212bb2c6c982b51243df7",
+   "bytes": 118
+  },
+  {
+   "nombre": "instalar.ps1",
+   "sha256": "b07a9f5d75cb715c653253eaa6a4dcac51025b9010fe222df958707a5e753aeb",
+   "bytes": 4601
+  },
+  {
+   "nombre": "INSTALAR.bat",
+   "sha256": "13632b4d4ddb0e0ae960e175745ec37645fdcc2fad75161b81a2771a22bc0d11",
+   "bytes": 134
+  },
+  {
+   "nombre": "LEEME.txt",
+   "sha256": "b4b47d7130117c66cb25942aa471e3ebd3a2b9ec304ec92c7973bd5111902ca5",
+   "bytes": 5331
+  },
+  {
+   "nombre": "vikingos.ico",
+   "sha256": "1409135176db90f4971ba269ae7156f03bbdad9b6d940369dcd0ca6915c2bd11",
+   "bytes": 44609
+  }
+ ]
+}

@@ -9,3 +9,5 @@ lleguen completos y se actualizan solas cuando no hay mesas abiertas.
 
 - `version.json`: versión publicada y lista de archivos con su huella SHA-256.
 - `programa/`: archivos del sistema.
+
+La carpeta `vikingos/` contiene el sistema de **Vikingos Licor Store**, con su propio `version.json`.

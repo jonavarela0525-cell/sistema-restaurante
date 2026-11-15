@@ -1,0 +1,100 @@
+SISTEMA VIKINGOS LICOR STORE - VERSIÓN DE ESCRITORIO
+=====================================================
+
+Funciona CON o SIN internet. Todo se guarda en el disco de cada computadora,
+al instante, con copias de seguridad automáticas. Cuando hay internet, las
+computadoras enlazadas (la de la tienda y tu computadora personal) se pasan
+los cambios entre ellas: ventas, inventario, créditos, abonos, usuarios.
+
+
+1. INSTALACIÓN (en cada computadora, una sola vez)
+---------------------------------------------------
+a) Instala Node.js (gratis). Necesitas internet solo para este paso:
+   https://nodejs.org/es/download  ->  elige "LTS" para Windows  ->  instala con las opciones normales.
+b) Descomprime este archivo ZIP (clic derecho -> "Extraer todo").
+c) Abre la carpeta y haz doble clic en INSTALAR.bat
+   - Si Windows muestra "Windows protegió su PC": clic en "Más información" -> "Ejecutar de todas formas".
+   - Cuando pida permiso para la red (para los celulares), responde "Sí".
+d) Se abre el sistema:
+   - En la COMPUTADORA DE LA TIENDA elige "Es la computadora de la tienda".
+     Se cargan tus productos, ventas y usuarios de la versión web. Entras con tu mismo PIN.
+   - En tu COMPUTADORA PERSONAL elige "Enlazar con otra computadora" (ver punto 2).
+
+Al terminar tendrás:
+- Un icono "Vikingos Licor Store" en el escritorio.
+- El sistema arranca solo cada vez que se enciende la computadora.
+- El programa queda en:  C:\Users\<tu usuario>\SistemaVikingos
+
+
+2. ENLAZAR LA COMPUTADORA DE LA TIENDA CON TU COMPUTADORA PERSONAL
+-------------------------------------------------------------------
+El enlace usa un repositorio PRIVADO de GitHub como buzón (solo tú lo ves).
+
+Primero, una sola vez, en github.com con tu cuenta:
+  a) Crear el repositorio:  botón "+" (arriba a la derecha) -> "New repository"
+     - Repository name:  vikingos-datos
+     - Marca "Private"  (MUY IMPORTANTE)
+     - Clic en "Create repository".
+  b) Crear la clave (token):  tu foto (arriba a la derecha) -> Settings -> Developer settings
+     -> Personal access tokens -> Fine-grained tokens -> "Generate new token"
+     - Token name: Vikingos
+     - Expiration: el plazo más largo que permita (o "No expiration")
+     - Repository access: "Only select repositories" -> elige vikingos-datos
+     - Permissions -> Repository permissions -> Contents: "Read and write"
+     - Clic en "Generate token" y COPIA la clave (empieza con github_pat_). Guárdala en un lugar seguro.
+
+Después:
+  - En la computadora de la tienda: Ajustes -> Enlace entre computadoras.
+    Repositorio: jonavarela0525-cell/vikingos-datos   Clave: (la que copiaste) -> "Enlazar".
+  - En tu computadora personal, en la primera pantalla: "Enlazar con otra computadora",
+    con los mismos datos. En unos segundos aparecen tus usuarios y entras con tu PIN.
+
+Cada computadora factura con su propio prefijo para que los números nunca se repitan:
+  tienda 000-001-01-...   personal 000-002-01-...   (se cambia en Ajustes -> Este equipo).
+
+Sin internet: cada computadora sigue vendiendo normal. Al volver la conexión
+se pasan los cambios solos (revisa cada minuto). En la barra de arriba verás
+"Enlazado", "Sin internet · todo se guarda aquí" o "Error de enlace".
+
+
+3. USO DIARIO
+-------------
+- En la computadora: doble clic en "Vikingos Licor Store" del escritorio.
+- En celulares/tablets: conéctalos al WiFi de la tienda y abre en el navegador la dirección
+  que aparece en Ajustes -> "Celulares y tablets" (ejemplo: http://192.168.1.50:8081).
+  Los celulares funcionan aunque no haya internet, mientras la computadora esté encendida.
+- Imprimir factura: botón "Imprimir" (impresora predeterminada de Windows, también térmica de 80 mm).
+  Para imprimir solo al cobrar: Ajustes -> Este equipo -> "Imprimir automáticamente al cobrar".
+
+
+4. USUARIOS
+-----------
+Pestaña Usuarios (solo administrador): crear cajeros, cambiar PIN, desactivar.
+- Cajero: vende, registra entradas de mercadería, abonos de créditos, ve sus ventas.
+- Administrador: todo (precios, productos, ajustes de inventario, anular, usuarios, ajustes).
+Los usuarios son los mismos en las dos computadoras enlazadas.
+
+
+5. RESPALDOS
+------------
+- Datos:      SistemaVikingos\datos\vikingos.db
+- Respaldos:  SistemaVikingos\respaldos\  (uno al iniciar y cada 2 horas; guarda los últimos 60)
+- Copia extra en una memoria USB u OneDrive: Ajustes -> Respaldos -> "Copia extra en otra carpeta".
+- Si enlazaste las computadoras, cada una es además respaldo de la otra.
+
+
+6. ACTUALIZACIONES
+------------------
+Igual que el sistema del restaurante: cada hora revisa si hay una versión nueva en
+GitHub, la descarga, verifica que llegue completa y se instala sola cuando no hay
+ventas en curso. Tus datos no se tocan. Si una versión nueva fallara, regresa sola
+a la anterior.
+
+
+7. PROBLEMAS COMUNES
+--------------------
+- "Error de enlace": revisa en Ajustes -> Enlace entre computadoras el mensaje. Lo más común:
+  la clave venció (crea otra y pégala en las dos computadoras) o el repositorio no es privado.
+- Los celulares no conectan: mismo WiFi que la computadora y la dirección exacta de Ajustes.
+- "No se pudo iniciar el sistema": revisa que Node.js esté instalado; detalles en datos\consola.log
+- Para detener el sistema: "Detener sistema.bat" dentro de la carpeta SistemaVikingos.
