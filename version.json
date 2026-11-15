@@ -1,16 +1,16 @@
 {
- "version": "1.5.0",
- "publicado": "2026-11-14T21:05:45",
+ "version": "1.6.0",
+ "publicado": "2026-11-14T21:44:06",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "7d436ac0a181a52dbe8911fe50a19cbc1b1a631c58fe08d11068829cc79b3f6a",
+   "sha256": "89390db60642b9ff73af71e03ee92b633728a98eba3ceccb9baba06898653212",
    "bytes": 34061
   },
   {
    "nombre": "app.html",
-   "sha256": "d7a6d9167a4ff7f4aaa314d84c35310b13f7c0d081be6be2ae63ef61b0416096",
-   "bytes": 99704
+   "sha256": "6fc5c250b2cdad953bec0cbaddf08b92f95c79afd00aecd1407ff4235b470a60",
+   "bytes": 102403
   },
   {
    "nombre": "lanzador.js",
