@@ -730,7 +730,8 @@ function vAjustes(){
   <h3>Respaldos</h3><div class="card" id="respCard">
    <p class="mute" style="margin-top:0">Todo se guarda al instante en el disco de esta computadora. Además se crea una copia de seguridad al iniciar y cada 2 horas.</p>
    <div id="respInfo" class="mute">Cargando…</div>
-   <div class="row wrap" style="margin-top:10px"><button class="btn p" data-act="respaldar">Hacer respaldo ahora</button><button class="btn" data-act="exportar">Descargar copia (JSON)</button></div></div>
+   <div class="row wrap" style="margin-top:10px"><button class="btn p" data-act="respaldar">Hacer respaldo ahora</button><button class="btn" data-act="descargarDb">Descargar respaldo completo</button><label class="btn" style="display:inline-block">Restaurar un respaldo<input type="file" id="fRest2" accept=".db" style="display:none"></label></div>
+   <p class="mute">"Restaurar" reemplaza todos los datos de esta computadora por los del respaldo (la base actual se guarda aparte por si acaso).</p></div>
   <p class="mute" style="text-align:center;margin-top:16px">Sistema del Restaurante v${esc(S.info.version||'')}</p>`;
 }
 
@@ -789,6 +790,7 @@ document.addEventListener('click',async e=>{
     case 'updInstalar':{if(!twoTap(b,'¿Instalar? El sistema se reiniciará unos segundos'))break;b.disabled=true;try{await api('actualizacion',{accion:'instalar'});toast('Instalando… el sistema se recargará solo')}catch(e){toast(e.message);b.disabled=false}break}
     case 'logoQuitar':{if(!twoTap(b))break;try{await W('config/logo','delete');toast('Se usa el logo original')}catch(e){}break}
     case 'respaldar':{b.disabled=true;try{const r=await api('respaldo',{});toast('Respaldo creado: '+r.nombre);cargarRespaldos()}catch(e){toast(e.message)}b.disabled=false;break}
+    case 'descargarDb':{try{const r=await fetch('/api/descargarRespaldo',{headers:{'X-Token':API.token}});if(!r.ok)throw new Error('No se pudo descargar');const nombre=(r.headers.get('Content-Disposition')||'').match(/filename="([^"]+)"/);await localDl.save({filename:nombre?nombre[1]:'restaurante.db',data:await r.blob()})}catch(e){toast(e.message)}break}
     case 'exportar':{try{const r=await fetch('/api/exportar',{headers:{'X-Token':API.token}});if(!r.ok)throw new Error('No se pudo exportar');const t=await r.text();await localDl.save({filename:'respaldo_restaurante_'+hoy()+'.json',data:t})}catch(e){toast(e.message)}break}
     case 'salir':{try{await api('salir',{})}catch(e){}guardarToken('');location.reload();break}
     case 'verF':{const f=S.facturasHoy.find(x=>x.id===id);if(f)verFactura(f);break}
@@ -812,7 +814,7 @@ document.addEventListener('click',async e=>{
   }
 });
 document.addEventListener('input',e=>{if(e.target.id!=='buscar'&&$('#view').contains(e.target))S.dirty=true;if(e.target.id==='buscar'){S.q=e.target.value;const g=$('#gridPlatos');if(g)g.innerHTML=gridPlatos(Object.values(S.platos).filter(p=>p.activo!==false).sort((a,b)=>String(a.nombre).localeCompare(b.nombre)))}});
-document.addEventListener('change',e=>{if(e.target.id==='logoFile'){subirLogo(e.target.files&&e.target.files[0]);return}
+document.addEventListener('change',e=>{if(e.target.id==='fRest2'){const f=e.target.files&&e.target.files[0];if(f){openModal(`<h2>¿Restaurar este respaldo?</h2><p>${esc(f.name)}</p><p>Todos los datos actuales de esta computadora se reemplazarán por los del respaldo. La base actual se guarda aparte.</p><div class="row"><span class="sp"></span><button class="btn" data-x="c">Cancelar</button><button class="btn p" data-x="o">Restaurar</button></div>`,sh=>{sh.querySelector('[data-x=c]').onclick=closeModal;sh.querySelector('[data-x=o]').onclick=()=>{closeModal();confirmarRestaurar=true;restaurarRespaldo(f,false)}})}e.target.value='';return}if(e.target.id==='logoFile'){subirLogo(e.target.files&&e.target.files[0]);return}
   if(e.target.id==='aLF'){S.dirty=false;W('config/negocio','update',{logoFactura:e.target.checked}).then(()=>toast('Guardado')).catch(()=>{});return}if(e.target.id==='esImp'){try{localStorage.setItem('rs_impresora',e.target.checked?'1':'0')}catch(_){}S.dirty=false;escucharImpresiones();vigilarComandas();toast(e.target.checked?'Este dispositivo imprimirá las facturas':'Este dispositivo ya no imprime');return}const m=e.target.dataset&&e.target.dataset.mesa;if(m){const v=e.target.value.trim();S.dirty=false;if(v&&S.mesas[m]&&v!==S.mesas[m].nombre)mutate('mesas',m,()=>({nombre:v})).catch(()=>{})}});
 
 /* ---------- arranque ---------- */
@@ -832,14 +834,29 @@ function pantallaAcceso(setup,msg){
    <label>PIN${setup?' (4 a 8 números)':''}</label><input id="lP" type="password" inputmode="numeric" autocomplete="${setup?'new-password':'current-password'}">
    ${setup?'<label>Repite el PIN</label><input id="lP2" type="password" inputmode="numeric">':''}
    <div id="lMsg" class="mute" style="color:var(--bad);min-height:20px;margin-top:8px">${esc(msg||'')}</div>
-   <button class="btn p full" id="lGo">${setup?'Crear administrador':'Entrar'}</button></div>`;
+   <button class="btn p full" id="lGo">${setup?'Crear administrador':'Entrar'}</button>
+   ${setup?`<div style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px;text-align:center"><p class="mute" style="margin-top:0">¿Ya usabas el sistema en otra computadora?</p><label class="btn full" style="display:block">📂 Restaurar un respaldo<input type="file" id="fRest" accept=".db" style="display:none"></label><p class="mute">Elige el archivo <b>restaurante_....db</b> (por ejemplo desde tu memoria USB o la carpeta "respaldos").</p></div>`:''}</div>`;
   render();
   const go=async()=>{const bt=$('#lGo');const u=$('#lU').value.trim(),p=$('#lP').value;const m=$('#lMsg');
     if(!u){m.textContent='Escribe el usuario';return}if(setup){if(!$('#lN').value.trim()){m.textContent='Escribe tu nombre';return}if(!/^\d{4,8}$/.test(p.trim())){m.textContent='El PIN debe tener de 4 a 8 números';return}if(p!==$('#lP2').value){m.textContent='Los PIN no coinciden';return}}
     bt.disabled=true;try{const r=await api(setup?'configurar':'entrar',setup?{nombre:$('#lN').value,usuario:u,pin:p}:{usuario:u,pin:p});guardarToken(r.token);S.yo=r.yo;S.pantalla=null;S.dirty=false;S.pending=false;if(document.activeElement)document.activeElement.blur();iniciar()}catch(e){m.textContent=e.message;bt.disabled=false}};
-  $('#lGo').onclick=go;$('#view').addEventListener('keydown',e=>{if(e.key==='Enter'&&S.pantalla)go()});
+  $('#lGo').onclick=go;
+  const fr=$('#fRest');if(fr)fr.onchange=()=>restaurarRespaldo(fr.files&&fr.files[0],true);$('#view').addEventListener('keydown',e=>{if(e.key==='Enter'&&S.pantalla)go()});
   setTimeout(()=>{const f=$(setup?'#lN':'#lU');if(f)f.focus()},50);
 }
+async function restaurarRespaldo(file,desdeInicio){
+  if(!file)return;S.dirty=false;
+  if(!/\.db$/i.test(file.name)){toast('Elige un archivo que termine en .db');return}
+  if(!desdeInicio&&!confirmarRestaurar)return;
+  S.pantalla=`<div class="card empty" style="max-width:420px;margin:30px auto"><p><b>Restaurando respaldo…</b></p><p>${esc(file.name)}</p><p class="mute">No cierres esta ventana.</p></div>`;render();
+  let r;
+  try{const res=await fetch('/api/restaurar',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Token':API.token},body:file});r=await res.json().catch(()=>({}));if(!res.ok)throw new Error(r.error||'No se pudo restaurar')}
+  catch(e){S.pantalla=null;toast(e.message);if(desdeInicio)pantallaAcceso(true,e.message);else render();return}
+  guardarToken('');
+  S.pantalla=`<div class="card empty" style="max-width:420px;margin:30px auto"><p><b>✅ Respaldo cargado</b></p><p>${r.facturas} facturas · ${r.platos} platos · ${r.insumos} insumos · ${r.usuarios} usuarios</p><p class="mute" id="rMsg">${r.reinicioAutomatico?'Reiniciando el sistema…':'Cierra esta ventana y vuelve a abrir el sistema desde el icono del escritorio.'}</p></div>`;render();
+  if(r.reinicioAutomatico){for(let i=0;i<40;i++){await sleep(1000);try{const x=await fetch('/api/estado');if(x.ok){location.reload();return}}catch(e){}}}
+}
+let confirmarRestaurar=false;
 function iniciar(){
   S.db=localDb;S.user=localUser;S.dl=localDl;S.uid=S.yo.id;S.isAdmin=S.yo.rol==='admin';S.canWrite=true;S.names[S.yo.id]=S.yo.nombre;
   $('#quien').innerHTML=`${esc(S.yo.nombre)} <span class="pill ${S.isAdmin?'a':'ok'}">${S.isAdmin?'Administrador':'Usuario'}</span> <button class="btn sm" data-act="salir" style="margin-left:6px">Salir</button>`;

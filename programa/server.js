@@ -13,7 +13,7 @@ const crypto = require('crypto');
 process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 
-const VERSION = '1.4.0';
+const VERSION = '1.5.0';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante'; // usuario/repositorio en GitHub
 const BASE = __dirname;
 const DATA_DIR = path.join(BASE, 'datos');
@@ -35,6 +35,19 @@ function log(...a) {
 }
 
 /* ---------------- base de datos ---------------- */
+// ¿hay un respaldo para restaurar? (se pidió desde el sistema; se cambia antes de abrir la base)
+(function aplicarRestauracion() {
+  const nuevo = path.join(DATA_DIR, 'restaurante_restaurar.db');
+  if (!fs.existsSync(nuevo)) return;
+  const actual = path.join(DATA_DIR, 'restaurante.db');
+  const d = new Date(); const z = n => String(n).padStart(2, '0');
+  const sello = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
+  try {
+    for (const ext of ['', '-wal', '-shm']) if (fs.existsSync(actual + ext)) fs.renameSync(actual + ext, path.join(DATA_DIR, `restaurante_antes_de_restaurar_${sello}.db${ext}`));
+    fs.renameSync(nuevo, actual);
+    log('Respaldo restaurado. La base anterior quedó como restaurante_antes_de_restaurar_' + sello + '.db');
+  } catch (e) { log('ERROR al restaurar el respaldo: ' + e.message); }
+})();
 const db = new DatabaseSync(path.join(DATA_DIR, 'restaurante.db'));
 db.exec(`
 PRAGMA journal_mode=WAL;
@@ -197,6 +210,13 @@ function importarSiVacia() {
 }
 
 /* ---------------- http ---------------- */
+function bodyCrudo(req, max) {
+  return new Promise((res, rej) => {
+    const partes = []; let n = 0;
+    req.on('data', c => { n += c.length; if (n > max) { rej(err(413, 'El archivo es demasiado grande')); req.destroy(); } else partes.push(c); });
+    req.on('end', () => res(Buffer.concat(partes))); req.on('error', rej);
+  });
+}
 function body(req) {
   return new Promise((res, rej) => {
     let b = ''; req.setEncoding('utf8');
@@ -221,6 +241,29 @@ async function api(req, res, url) {
     const hayUsuarios = usuarios().length > 0;
     const u = sessionUser(req);
     return send(res, 200, { version: VERSION, hayUsuarios, yo: u ? publicUser(u) : null, ips: ips(), puerto: CFG.puerto, ahora: Date.now() });
+  }
+  if (route === 'restaurar' && req.method === 'POST') {
+    const sinUsuarios = usuarios().length === 0;
+    if (!sinUsuarios && !isAdmin(sessionUser(req))) throw err(403, 'Solo el administrador puede restaurar un respaldo');
+    const buf = await bodyCrudo(req, 500 * 1024 * 1024);
+    if (buf.length < 100 || buf.subarray(0, 16).toString('latin1') !== 'SQLite format 3\u0000') throw err(400, 'Ese archivo no es un respaldo del sistema (debe ser un archivo restaurante_....db)');
+    const tmp = path.join(DATA_DIR, 'restaurante_restaurar.tmp');
+    fs.writeFileSync(tmp, buf);
+    let info;
+    try {
+      const t = new DatabaseSync(tmp, { readOnly: true });
+      const tabla = t.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='docs'").get();
+      if (!tabla) { t.close(); throw err(400, 'Ese archivo no es un respaldo del sistema'); }
+      const cuenta = col => t.prepare('SELECT COUNT(*) n FROM docs WHERE col=?').get(col).n;
+      info = { usuarios: cuenta('usuarios'), facturas: cuenta('facturas'), platos: cuenta('platos'), insumos: cuenta('insumos') };
+      t.close();
+    } catch (e) { try { fs.unlinkSync(tmp); } catch (_) {} if (e.status) throw e; throw err(400, 'El respaldo está dañado o no se puede leer'); }
+    respaldo('antes de restaurar un respaldo');
+    fs.renameSync(tmp, path.join(DATA_DIR, 'restaurante_restaurar.db'));
+    log(`Restauración solicitada: ${info.facturas} facturas, ${info.platos} platos, ${info.usuarios} usuarios. Reiniciando...`);
+    send(res, 200, { ok: true, ...info, reinicioAutomatico: !!process.env.RS_LANZADOR });
+    setTimeout(() => { try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); db.close(); } catch (_) {} process.exit(75); }, 700);
+    return;
   }
   if (route === 'configurar' && req.method === 'POST') {
     const b = await body(req);
@@ -422,6 +465,12 @@ async function api(req, res, url) {
     const files = fs.readdirSync(BK_DIR).filter(f => /^restaurante_.*\.db$/.test(f)).sort().reverse()
       .map(f => ({ nombre: f, bytes: fs.statSync(path.join(BK_DIR, f)).size }));
     return send(res, 200, { carpeta: BK_DIR, extra: CFG.carpetaRespaldoExtra || '', archivos: files.slice(0, 20), total: files.length });
+  }
+  if (route === 'descargarRespaldo' && req.method === 'GET') {
+    if (!isAdmin(u)) throw err(403, 'Solo el administrador');
+    const nombre = respaldo('descarga'); if (!nombre) throw err(500, 'No se pudo crear el respaldo');
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename="${nombre}"` });
+    return fs.createReadStream(path.join(BK_DIR, nombre)).pipe(res);
   }
   if (route === 'exportar' && req.method === 'GET') {
     if (!isAdmin(u)) throw err(403, 'Solo el administrador');
