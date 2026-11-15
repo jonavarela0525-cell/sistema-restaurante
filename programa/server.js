@@ -13,7 +13,7 @@ const crypto = require('crypto');
 process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante'; // usuario/repositorio en GitHub
 const BASE = __dirname;
 const DATA_DIR = path.join(BASE, 'datos');

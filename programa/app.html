@@ -93,7 +93,7 @@ table.t th{font-size:12px;color:var(--mute);font-weight:600}
 </head>
 <body>
 <header>
-  <div class="row"><h1 id="titulo">🍽️ Restaurante</h1><span class="sp"></span><span id="quien" class="mute"></span></div>
+  <div class="row"><h1 id="titulo">Restaurante</h1><span class="sp"></span><span id="quien" class="mute"></span></div>
   <div id="status"></div>
 </header>
 <main id="view"></main>
@@ -103,6 +103,7 @@ table.t th{font-size:12px;color:var(--mute);font-weight:600}
 <script>
 (function(){
 "use strict";
+const LOGO_DEF='data:image/png;base64,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';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const r2=n=>Math.round((Number(n)+Number.EPSILON)*100)/100;
@@ -167,6 +168,8 @@ const localUser={profiles:async ids=>{if(ids.some(i=>!S.usuarios.find(u=>u.id===
 const localDl={save:async({filename,data})=>{const b=new Blob([data],{type:filename.endsWith('.csv')?'text/csv':filename.endsWith('.html')?'text/html':'application/octet-stream'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);return{status:'saved'}}};
 function imprimir(html){const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);f.srcdoc=html;setTimeout(()=>f.remove(),60000)}
 
+function logoSrc(){return S.logoPropio||LOGO_DEF}
+function logoImg(estilo){return `<img src="${logoSrc()}" alt="" style="${estilo}">`}
 const S={db:null,user:null,dl:null,uid:null,canWrite:true,isAdmin:false,ready:false,noDb:false,offline:{},
   negocio:{},insumos:{},platos:{},mesas:{},facturasHoy:[],abonosHoy:[],creditos:[],cierreHoy:null,
   tab:'mesas',mesaAbierta:null,cat:'Todas',q:'',names:{},
@@ -212,7 +215,7 @@ function renderStatus(){
   const b=[];
   if(S.sinServidor)b.push('<div class="banner b">Sin conexión con la computadora del restaurante. Revisa que esté encendida y que estés en el mismo WiFi. Los cambios no se guardarán hasta que vuelva la conexión.</div>');
   $('#status').innerHTML=b.join('');
-  $('#titulo').textContent='🍽️ '+(S.negocio.nombre||'Restaurante');
+  $('#titulo').innerHTML=logoImg('height:34px;width:34px;object-fit:contain;vertical-align:middle;margin-right:8px')+esc(S.negocio.nombre||'Restaurante');
 }
 function render(){
   renderTabs();renderStatus();
@@ -337,7 +340,7 @@ async function moverInventario(items,signo){
 function facturaHTML(f){
   const e=f.emisor||{};const fe=new Date(f.fecha);
   return `<div class="inv">
-   <div class="c"><b style="font-size:14px">${esc(e.nombre||'Restaurante')}</b>${e.razon?`<br>${esc(e.razon)}`:''}${e.rtn?`<br>RTN: ${esc(e.rtn)}`:''}${e.direccion?`<br>${esc(e.direccion)}`:''}${e.telefono||e.correo?`<br>${esc([e.telefono&&'Tel: '+e.telefono,e.correo].filter(Boolean).join(' · '))}`:''}</div><hr>
+   ${S.negocio.logoFactura!==false?`<div class="c">${logoImg('width:40mm;max-width:55%;display:block;margin:0 auto 4px')}</div>`:''}<div class="c"><b style="font-size:14px">${esc(e.nombre||'Restaurante')}</b>${e.razon?`<br>${esc(e.razon)}`:''}${e.rtn?`<br>RTN: ${esc(e.rtn)}`:''}${e.direccion?`<br>${esc(e.direccion)}`:''}${e.telefono||e.correo?`<br>${esc([e.telefono&&'Tel: '+e.telefono,e.correo].filter(Boolean).join(' · '))}`:''}</div><hr>
    <div class="c"><b>${f.fiscal?'FACTURA':'COMPROBANTE INTERNO'}</b><br>No. ${esc(f.numero)}${f.fiscal?`<br>CAI: ${esc(e.cai)}`:'<br>(No válido como factura fiscal)'}</div>
    ${f.anulada?'<div class="c" style="color:#b91c1c;font-weight:700;margin-top:6px">*** ANULADA ***</div>':''}<hr>
    Fecha: ${fe.toLocaleDateString('es-HN')} ${fe.toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})}<br>
@@ -385,7 +388,7 @@ pre{white-space:pre-wrap;margin:0;font:inherit}
 window.onload=function(){var h=Math.ceil(document.body.scrollHeight*25.4/96)+6;var st=document.createElement('style');st.textContent='@page{size:80mm '+Math.max(60,h)+'mm;margin:0}';document.head.appendChild(st);setTimeout(function(){window.print()},150)};
 <\/script></body></html>`}
 function facturaDoc(f){return docImpresion(facturaHTML(f),'Factura '+f.numero)}
-function reciboDoc(texto){return docImpresion('<div class="inv"><pre>'+esc(texto)+'</pre></div>','Recibo')}
+function reciboDoc(texto){return docImpresion('<div class="inv">'+(S.negocio.logoFactura!==false?'<div class="c">'+logoImg('width:30mm;display:block;margin:0 auto 4px')+'</div>':'')+'<pre>'+esc(texto)+'</pre></div>','Recibo')}
 /* ---------- impresión ---------- */
 const esImpresora=()=>{try{const v=localStorage.getItem('rs_impresora');if(v===null)return ['localhost','127.0.0.1'].includes(location.hostname);return v==='1'}catch(e){return false}};
 async function mandarAImprimir(job){
@@ -710,6 +713,10 @@ function vAjustes(){
    <p class="mute">Cada persona entra con su usuario y PIN, así cada factura queda registrada con quién la cobró. Para quitarle el acceso a alguien, desactívalo.</p>
    ${cajeros.length?`<h3>Personas que han facturado hoy</h3><div class="list">${cajeros.map(id=>`<div class="it"><span class="sp">${esc(S.names[id]||'Usuario')}</span><span class="mute">${S.facturasHoy.filter(f=>f.cajero===id&&!f.anulada).length} factura(s)</span></div>`).join('')}</div>`:''}
   </div>
+  <h3>Logo</h3><div class="card"><div class="row wrap" style="gap:14px">${logoImg('width:110px;height:110px;object-fit:contain;border:1px solid var(--line);border-radius:12px;padding:6px;background:#fff')}
+   <div class="sp">${S.isAdmin?`<label class="btn" style="display:inline-block;margin:0 6px 6px 0">Cambiar logo<input type="file" id="logoFile" accept="image/*" style="display:none"></label>${S.logoPropio?'<button class="btn d" data-act="logoQuitar">Usar el original</button>':''}`:''}
+   <label class="check"><input type="checkbox" id="aLF" ${S.negocio.logoFactura!==false?'checked':''} ${S.isAdmin?'':'disabled'}> Imprimir el logo en facturas y recibos</label>
+   <p class="mute">Para impresoras térmicas el logo se convierte a blanco y negro.</p></div></div></div>
   <h3>Impresora</h3><div class="card">
    <label class="check" style="margin-top:0"><input type="checkbox" id="esImp" ${esImpresora()?'checked':''}> <b>Este dispositivo tiene la impresora de tickets</b></label>
    <p class="mute">Márcalo solo en la computadora de caja. Las facturas que se cobren desde los celulares se imprimirán aquí automáticamente, mientras el sistema esté abierto en esta computadora.</p>
@@ -731,6 +738,17 @@ function pintarUpd(r){const el=$('#updInfo');if(!el)return;
   el.innerHTML=`Versión instalada: <b>${esc(r.version)}</b><br>${!r.repo?'Actualizaciones automáticas: no configuradas.':`Estado: <b>${esc(r.estado||'')}</b>${r.ultimaRevision?' · revisado '+new Date(r.ultimaRevision).toLocaleString('es-HN'):''}${r.error?`<br><span style="color:var(--bad)">${esc(r.error)}</span>`:''}<br>El sistema revisa cada hora si hay versión nueva y la instala sola cuando no hay mesas abiertas.`}${r.lanzador?'':'<br><span style="color:var(--warn)">Reinicia la computadora una vez para activar la instalación automática.</span>'}`;
   const b=$('#btnUpdInst');if(b)b.style.display=r.disponible?'':'none'}
 async function cargarUpd(){try{pintarUpd(await api('actualizacion'))}catch(e){const el=$('#updInfo');if(el)el.textContent='No se pudo leer el estado.'}}
+async function subirLogo(file){
+  S.dirty=false;if(!file)return;if(!/^image\//.test(file.type)){toast('Elige una imagen');return}
+  try{
+    const img=await new Promise((ok,mal)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=mal;i.src=URL.createObjectURL(file)});
+    const L=420,c=document.createElement('canvas');c.width=L;c.height=L;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,L,L);
+    const k=Math.min(L/img.width,L/img.height)*0.94,w=img.width*k,h=img.height*k;x.drawImage(img,(L-w)/2,(L-h)/2,w,h);
+    const d=x.getImageData(0,0,L,L),a=d.data;for(let i=0;i<a.length;i+=4){const g=0.299*a[i]+0.587*a[i+1]+0.114*a[i+2];const v=g<150?0:255;a[i]=a[i+1]=a[i+2]=v;a[i+3]=255}x.putImageData(d,0,0);
+    const data=c.toDataURL('image/png');if(data.length>400000){toast('La imagen es muy compleja; usa una más sencilla');return}
+    await W('config/logo','set',{data,actualizado:new Date().toISOString()});toast('Logo actualizado');
+  }catch(e){toast('No se pudo usar esa imagen')}
+}
 async function cargarRespaldos(){cargarUpd();const el=$('#respInfo');if(!el)return;try{const r=await api('respaldos');const ult=r.archivos[0];el.innerHTML=`Carpeta: <b>${esc(r.carpeta)}</b><br>Respaldos guardados: ${r.total}${ult?` · último: ${esc(ult.nombre.replace('restaurante_','').replace('.db',''))}`:''}${r.extra?`<br>Copia extra en: <b>${esc(r.extra)}</b>`:'<br>Recomendado: configura una copia extra en una memoria USB o carpeta de OneDrive (ver la guía).'}`}catch(e){el.textContent='No se pudo leer la información de respaldos.'}}
 function editarUsuario(id){
   const u=id?S.usuarios.find(x=>x.id===id):{nombre:'',usuario:'',rol:'usuario',activo:true};if(!u)return;
@@ -769,6 +787,7 @@ document.addEventListener('click',async e=>{
     case 'prueba':mandarAImprimir({tipo:'prueba'});break;
     case 'updRevisar':{b.disabled=true;b.textContent='Buscando…';try{pintarUpd(await api('actualizacion',{accion:'revisar'}))}catch(e){toast(e.message)}b.disabled=false;b.textContent='Buscar actualización';break}
     case 'updInstalar':{if(!twoTap(b,'¿Instalar? El sistema se reiniciará unos segundos'))break;b.disabled=true;try{await api('actualizacion',{accion:'instalar'});toast('Instalando… el sistema se recargará solo')}catch(e){toast(e.message);b.disabled=false}break}
+    case 'logoQuitar':{if(!twoTap(b))break;try{await W('config/logo','delete');toast('Se usa el logo original')}catch(e){}break}
     case 'respaldar':{b.disabled=true;try{const r=await api('respaldo',{});toast('Respaldo creado: '+r.nombre);cargarRespaldos()}catch(e){toast(e.message)}b.disabled=false;break}
     case 'exportar':{try{const r=await fetch('/api/exportar',{headers:{'X-Token':API.token}});if(!r.ok)throw new Error('No se pudo exportar');const t=await r.text();await localDl.save({filename:'respaldo_restaurante_'+hoy()+'.json',data:t})}catch(e){toast(e.message)}break}
     case 'salir':{try{await api('salir',{})}catch(e){}guardarToken('');location.reload();break}
@@ -793,7 +812,8 @@ document.addEventListener('click',async e=>{
   }
 });
 document.addEventListener('input',e=>{if(e.target.id!=='buscar'&&$('#view').contains(e.target))S.dirty=true;if(e.target.id==='buscar'){S.q=e.target.value;const g=$('#gridPlatos');if(g)g.innerHTML=gridPlatos(Object.values(S.platos).filter(p=>p.activo!==false).sort((a,b)=>String(a.nombre).localeCompare(b.nombre)))}});
-document.addEventListener('change',e=>{if(e.target.id==='esImp'){try{localStorage.setItem('rs_impresora',e.target.checked?'1':'0')}catch(_){}S.dirty=false;escucharImpresiones();vigilarComandas();toast(e.target.checked?'Este dispositivo imprimirá las facturas':'Este dispositivo ya no imprime');return}const m=e.target.dataset&&e.target.dataset.mesa;if(m){const v=e.target.value.trim();S.dirty=false;if(v&&S.mesas[m]&&v!==S.mesas[m].nombre)mutate('mesas',m,()=>({nombre:v})).catch(()=>{})}});
+document.addEventListener('change',e=>{if(e.target.id==='logoFile'){subirLogo(e.target.files&&e.target.files[0]);return}
+  if(e.target.id==='aLF'){S.dirty=false;W('config/negocio','update',{logoFactura:e.target.checked}).then(()=>toast('Guardado')).catch(()=>{});return}if(e.target.id==='esImp'){try{localStorage.setItem('rs_impresora',e.target.checked?'1':'0')}catch(_){}S.dirty=false;escucharImpresiones();vigilarComandas();toast(e.target.checked?'Este dispositivo imprimirá las facturas':'Este dispositivo ya no imprime');return}const m=e.target.dataset&&e.target.dataset.mesa;if(m){const v=e.target.value.trim();S.dirty=false;if(v&&S.mesas[m]&&v!==S.mesas[m].nombre)mutate('mesas',m,()=>({nombre:v})).catch(()=>{})}});
 
 /* ---------- arranque ---------- */
 function sub(name,ref,onData){
@@ -806,7 +826,7 @@ const READY=['negocio','insumos','platos','mesas','facturas','abonos','creditos'
 let unsubHoy=null,unsubAb=null,diaSub=null;
 function subHoy(){if(diaSub===hoy())return;diaSub=hoy();if(unsubHoy)unsubHoy();if(unsubAb)unsubAb();S.facturasHoy=[];S.abonosHoy=[];unsubAb=sub('abonos',S.db.collection('abonos').where('dia','==',diaSub),s=>{S.abonosHoy=s.docs.map(d=>d.data())});unsubHoy=sub('facturas',S.db.collection('facturas').where('dia','==',diaSub),s=>{S.facturasHoy=s.docs.map(d=>({id:d.id,...d.data()}))})}
 function pantallaAcceso(setup,msg){
-  S.pantalla=`<div class="card" style="max-width:380px;margin:30px auto"><h2 style="text-align:center">🍽️ ${esc(S.info.nombreNegocio||'Sistema del Restaurante')}</h2>
+  S.pantalla=`<div class="card" style="max-width:380px;margin:30px auto"><div style="text-align:center">${logoImg('width:150px;height:150px;object-fit:contain')}</div><h2 style="text-align:center;margin-top:6px">${esc(S.info.nombreNegocio||'Sistema del Restaurante')}</h2>
    ${setup?'<p class="mute">Primera vez: crea la cuenta del <b>administrador</b> (dueño). Después podrás agregar a tu equipo en Ajustes.</p><label>Tu nombre</label><input id="lN" autocomplete="name">':''}
    <label>Usuario${setup?' (corto, para entrar; ej. jona)':''}</label><input id="lU" autocapitalize="off" autocomplete="username" placeholder="${setup?'ej. jona':''}">
    <label>PIN${setup?' (4 a 8 números)':''}</label><input id="lP" type="password" inputmode="numeric" autocomplete="${setup?'new-password':'current-password'}">
@@ -825,6 +845,7 @@ function iniciar(){
   $('#quien').innerHTML=`${esc(S.yo.nombre)} <span class="pill ${S.isAdmin?'a':'ok'}">${S.isAdmin?'Administrador':'Usuario'}</span> <button class="btn sm" data-act="salir" style="margin-left:6px">Salir</button>`;
   cargarUsuarios();conectarEventos();
   const db=S.db;
+  db.doc('config/logo').onSnapshot(s=>{const d=s.exists&&s.data().data;S.logoPropio=d||null;try{d?localStorage.setItem('rs_logo',d):localStorage.removeItem('rs_logo')}catch(e){}render()});
   sub('negocio',db.doc('config/negocio'),s=>{S.negocio=s.exists?s.data():{};try{localStorage.setItem('rs_nombre',S.negocio.nombre||'')}catch(e){}});
   sub('insumos',db.collection('insumos'),s=>{S.insumos=Object.fromEntries(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]))});
   sub('platos',db.collection('platos'),s=>{S.platos=Object.fromEntries(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]))});
@@ -835,6 +856,7 @@ function iniciar(){
   render();
 }
 S.usuarios=[];S.info={};
+try{S.logoPropio=localStorage.getItem('rs_logo')||null}catch(e){}
 try{S.info.nombreNegocio=localStorage.getItem('rs_nombre')||''}catch(e){}
 render();
 (async function arrancar(){
