@@ -58,6 +58,8 @@ h2{font:700 28px/1.05 "Grenze Gotisch",serif;margin:0 0 12px}
 .line .n{font-size:15px;line-height:1.2}.line .n small{display:block;color:#7a6c60}
 .qty{display:flex;align-items:center;gap:2px}.qty button{min-height:34px;width:34px;padding:0;background:#ece5da;color:#1f1712}
 .qty span{width:30px;text-align:center;font-weight:600}
+.line select{min-height:30px;padding:2px 6px;font-size:13px;border-radius:6px;margin-top:3px;width:auto;background:#fff;color:#1f1712;border-color:#d9d0c4}
+.niv{margin:0 0 10px}.prod s{font-size:13px;color:var(--mut);font-weight:400;margin-left:6px}
 .line .t{font-weight:600;white-space:nowrap;text-align:right;width:84px}
 .empty{color:var(--mut);text-align:center;padding:24px 8px}.ticket .empty{color:#8a7c70}
 .tot{display:flex;justify-content:space-between;font-size:15px;padding:2px 0}.tot.big{font:700 30px "Barlow Condensed";padding-top:8px;border-top:2px solid #1f1712;margin-top:6px}
@@ -155,6 +157,7 @@ dialog::backdrop{background:#0009}
    </div>
    <aside class="ticket" id="ticket">
     <h3>Factura</h3>
+    <div class="pagos niv" id="niveles" style="grid-template-columns:repeat(3,1fr)"><button data-n="n" class="on">Precio normal</button><button data-n="d">Descuento</button><button data-n="m">Por mayor</button></div>
     <div id="lines"></div>
     <div id="tots"></div>
     <div class="f2"><input id="cli" list="clis" placeholder="Cliente (Consumidor final)" autocomplete="off"><datalist id="clis"></datalist><input id="rtn" placeholder="RTN (opcional)" inputmode="numeric"></div>
@@ -177,7 +180,7 @@ dialog::backdrop{background:#0009}
    <button class="pri adm" id="inew" style="flex:0 1 auto">+ Producto nuevo</button>
   </div>
   <div class="kpis" id="ikpi"></div>
-  <div class="scroll"><table class="stack"><thead><tr><th>Código</th><th>Producto</th><th>Categoría</th><th class="r">Precio</th><th class="r adm">Costo</th><th class="r">Existencia</th><th class="r">Mínimo</th><th></th></tr></thead><tbody id="itb"></tbody></table></div>
+  <div class="scroll"><table class="stack"><thead><tr><th>Código</th><th>Producto</th><th>Categoría</th><th class="r">Normal</th><th class="r">Descuento</th><th class="r">Por mayor</th><th class="r adm">Compra</th><th class="r">Existencia</th><th class="r">Mínimo</th><th></th></tr></thead><tbody id="itb"></tbody></table></div>
  </section>
 
  <section class="view" id="v-ventas">
@@ -259,35 +262,43 @@ function renderPOS(){
  $('#cats').innerHTML=cats().map(c=>`<button class="${c===cat?'on':''}" data-c="${esc(c)}">${esc(c)}</button>`).join('');
  const q=$('#q').value.trim().toLowerCase();
  const list=P.filter(p=>(cat==='Todas'||(p.cat||'Otros')===cat)&&(!q||(p.nom+' '+p.cod).toLowerCase().includes(q)));
- $('#grid').innerHTML=list.length?list.map(p=>{const s=stock(p);return`<button class="prod" data-id="${esc(p.id)}" ${s<=0?'disabled':''}><b>${esc(p.nom)}</b><span class="st ${s<=(+p.min||0)?'low':''}">${s<=0?'Agotado':s+' en existencia'}</span><span class="pr">${L(p.precio)}</span></button>`}).join(''):`<div class="empty" style="grid-column:1/-1">${P.length?'Ningún producto coincide con la búsqueda.':'Todavía no hay productos. Créalos en Inventario.'}</div>`;
+ $('#grid').innerHTML=list.length?list.map(p=>{const s=stock(p);return`<button class="prod" data-id="${esc(p.id)}" ${s<=0?'disabled':''}><b>${esc(p.nom)}</b><span class="st ${s<=(+p.min||0)?'low':''}">${s<=0?'Agotado':s+' en existencia'}</span><span class="pr">${L(precioDe(p,nivel))}${nivelDe(p,nivel)!=='n'?`<s>${L(p.precio)}</s>`:''}</span></button>`}).join(''):`<div class="empty" style="grid-column:1/-1">${P.length?'Ningún producto coincide con la búsqueda.':'Todavía no hay productos. Créalos en Inventario.'}</div>`;
 }
+const NIV={n:'Normal',d:'Descuento',m:'Por mayor'};let nivel='n';
+const precioDe=(p,nv)=>nv==='d'&&+p.precioDesc>0?+p.precioDesc:nv==='m'&&+p.precioMay>0?+p.precioMay:+p.precio;
+const nivelDe=(p,nv)=>nv==='d'&&+p.precioDesc>0?'d':nv==='m'&&+p.precioMay>0?'m':'n';
+$('#niveles').onclick=e=>{const b=e.target.closest('button');if(!b)return;nivel=b.dataset.n;$$('#niveles button').forEach(x=>x.classList.toggle('on',x===b));
+ cart.forEach(it=>{const p=P.find(x=>x.id===it.id);if(p){it.nivel=nivelDe(p,nivel);it.precio=precioDe(p,nivel);it.normal=+p.precio}});
+ const sin=cart.filter(it=>it.nivel!==nivel).length;if(nivel!=='n'&&sin)toast(sin+' producto(s) no tienen precio '+NIV[nivel].toLowerCase()+'; se dejan a precio normal');
+ renderPOS();renderCart()};
 function totals(items){
  let t=0,b15=0,i15=0,b18=0,i18=0,ex=0;
  items.forEach(it=>{const m=it.precio*it.cant;t+=m;const r=+it.isv||0;if(!r)ex+=m;else{const b=m/(1+r/100);if(r===15){b15+=b;i15+=m-b}else{b18+=b;i18+=m-b}}});
  return{t,b15,i15,b18,i18,ex};
 }
 function renderCart(){
- $('#lines').innerHTML=cart.length?cart.map((it,i)=>`<div class="line"><div class="n">${esc(it.nom)}<small>${L(it.precio)} c/u</small></div><div class="qty"><button data-d="-1" data-i="${i}" aria-label="Menos">−</button><span>${it.cant}</span><button data-d="1" data-i="${i}" aria-label="Más">+</button></div><div class="t">${L(it.precio*it.cant)}</div></div>`).join(''):'<div class="empty">Toca un producto para agregarlo.</div>';
+ $('#lines').innerHTML=cart.length?cart.map((it,i)=>`<div class="line"><div class="n">${esc(it.nom)}<small>${L(it.precio)} c/u</small>${(()=>{const p=P.find(x=>x.id===it.id);if(!p)return'';const op=['n','d','m'].filter(k=>k==='n'||nivelDe(p,k)===k);return op.length>1?`<select data-i="${i}" aria-label="Tipo de precio">${op.map(k=>`<option value="${k}" ${it.nivel===k?'selected':''}>${NIV[k]} · ${L(precioDe(p,k))}</option>`).join('')}</select>`:''})()}</div><div class="qty"><button data-d="-1" data-i="${i}" aria-label="Menos">−</button><span>${it.cant}</span><button data-d="1" data-i="${i}" aria-label="Más">+</button></div><div class="t">${L(it.precio*it.cant)}</div></div>`).join(''):'<div class="empty">Toca un producto para agregarlo.</div>';
  const T=totals(cart);
- $('#tots').innerHTML=(T.b15?`<div class="tot"><span>Gravado 15%</span><span>${L(T.b15)}</span></div><div class="tot"><span>ISV 15%</span><span>${L(T.i15)}</span></div>`:'')+(T.b18?`<div class="tot"><span>Gravado 18%</span><span>${L(T.b18)}</span></div><div class="tot"><span>ISV 18%</span><span>${L(T.i18)}</span></div>`:'')+(T.ex?`<div class="tot"><span>Exento</span><span>${L(T.ex)}</span></div>`:'')+`<div class="tot big"><span>Total</span><span>${L(T.t)}</span></div>`;
+ $('#tots').innerHTML=(T.b15?`<div class="tot"><span>Gravado 15%</span><span>${L(T.b15)}</span></div><div class="tot"><span>ISV 15%</span><span>${L(T.i15)}</span></div>`:'')+(T.b18?`<div class="tot"><span>Gravado 18%</span><span>${L(T.b18)}</span></div><div class="tot"><span>ISV 18%</span><span>${L(T.i18)}</span></div>`:'')+(T.ex?`<div class="tot"><span>Exento</span><span>${L(T.ex)}</span></div>`:'')+(()=>{const ah=cart.reduce((a,it)=>a+Math.max(0,((it.normal||it.precio)-it.precio)*it.cant),0);return ah>0.004?`<div class="tot" style="color:#2d7a3e"><span>Ahorro del cliente</span><span>${L(ah)}</span></div>`:''})()+`<div class="tot big"><span>Total</span><span>${L(T.t)}</span></div>`;
  const n=cart.reduce((a,b)=>a+b.cant,0);$('#fltN').textContent=n?`Ver ticket · ${n} artículo${n>1?'s':''}`:'Ticket vacío';$('#fltT').textContent=L(T.t);
  cambio();
 }
 function cambio(){const t=totals(cart).t,r=+$('#rec').value;$('#cambio').textContent=pago==='Efectivo'&&r?(r>=t?'Cambio: '+L(r-t):'Faltan '+L(t-r)):''}
 function add(id){const p=P.find(x=>x.id===id);if(!p)return;const s=stock(p),it=cart.find(x=>x.id===id);
  if((it?it.cant:0)+1>s){toast('No hay más existencia de '+p.nom);return}
- it?it.cant++:cart.push({id:p.id,cod:p.cod||'',nom:p.nom,precio:+p.precio,isv:+p.isv||0,cant:1});renderCart()}
+ it?it.cant++:cart.push({id:p.id,cod:p.cod||'',nom:p.nom,precio:precioDe(p,nivel),nivel:nivelDe(p,nivel),normal:+p.precio,isv:+p.isv||0,cant:1});renderCart()}
 $('#grid').onclick=e=>{const b=e.target.closest('.prod');if(b)add(b.dataset.id)};
 $('#cats').onclick=e=>{const b=e.target.closest('button');if(b){cat=b.dataset.c;renderPOS()}};
 $('#q').oninput=renderPOS;
 $('#q').onkeydown=e=>{if(e.key!=='Enter')return;const v=e.target.value.trim();const p=P.find(x=>x.cod&&x.cod===v);if(p){add(p.id);e.target.value='';renderPOS()}else{const vis=$$('#grid .prod:not([disabled])');if(vis.length===1){add(vis[0].dataset.id);e.target.value='';renderPOS()}}};
+$('#lines').onchange=e=>{const s2=e.target.closest('select[data-i]');if(!s2)return;const it=cart[+s2.dataset.i],p=P.find(x=>x.id===it.id);if(!p)return;it.nivel=nivelDe(p,s2.value);it.precio=precioDe(p,s2.value);renderCart()};
 $('#lines').onclick=e=>{const b=e.target.closest('button[data-d]');if(!b)return;const it=cart[+b.dataset.i],d=+b.dataset.d;
  if(d>0){const p=P.find(x=>x.id===it.id);if(p&&it.cant+1>stock(p)){toast('No hay más existencia');return}}
  it.cant+=d;if(it.cant<=0)cart.splice(+b.dataset.i,1);renderCart()};
 $('#pagos').onclick=e=>{const b=e.target.closest('button');if(!b)return;pago=b.dataset.p;$$('#pagos button').forEach(x=>x.classList.toggle('on',x===b));$('#efec').style.display=pago==='Efectivo'?'':'none';$('#cred').style.display=pago==='Crédito'?'':'none';if(pago==='Crédito'&&!$('#cven').value){const d=new Date();d.setDate(d.getDate()+30);$('#cven').value=dia(d)}cambio()};
 $('#cli').oninput=()=>{const ps=pendCli($('#cli').value);$('#csaldo').textContent=ps.length?'Este cliente ya debe '+L(ps.reduce((a,v)=>a+saldo(v),0))+' en '+ps.length+' factura(s).':'';const c=CR.find(v=>v.cliente.toLowerCase()===$('#cli').value.trim().toLowerCase());if(c){if(!$('#rtn').value)$('#rtn').value=c.rtn||'';if(!$('#ctel').value)$('#ctel').value=c.tel||''}};
 $('#rec').oninput=cambio;
-$('#vaciar').onclick=()=>{cart=[];$('#csaldo').textContent='';$('#rec').value='';$('#ctel').value='';$('#cven').value='';$('#cli').value='';$('#rtn').value='';renderCart()};
+$('#vaciar').onclick=()=>{cart=[];nivel='n';$$('#niveles button').forEach(x=>x.classList.toggle('on',x.dataset.n==='n'));$('#csaldo').textContent='';$('#rec').value='';$('#ctel').value='';$('#cven').value='';$('#cli').value='';$('#rtn').value='';renderCart()};
 $('#flt').onclick=()=>$('#ticket').scrollIntoView({behavior:'smooth'});
 
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -304,7 +315,7 @@ $('#cobrar').onclick=async()=>{
   const v={num:nf.num,factura:nf.factura,equipo:EST.equipo||'',fecha:now.toISOString(),ts:now.getTime(),dia:dia(now),cliente:$('#cli').value.trim()||'Consumidor final',rtn:$('#rtn').value.trim(),pago,recibido:pago==='Efectivo'?(rec||T.t):pago==='Crédito'?0:T.t,tel:pago==='Crédito'?$('#ctel').value.trim():'',vence:pago==='Crédito'?($('#cven').value||''):'',abonos:{},items:cart.map(x=>({...x})),total:+T.t.toFixed(2),b15:+T.b15.toFixed(2),i15:+T.i15.toFixed(2),b18:+T.b18.toFixed(2),i18:+T.i18.toFixed(2),ex:+T.ex.toFixed(2),vendedor:S?.id||'',vendNom:S?.nombre||'',anulada:false};
   await vref.set(v);
   for(const [i,it] of cart.entries())await db.doc('productos/'+it.id).update({movs:{['v'+vref.id+'_'+i]:-it.cant}});
-  cart=[];$('#rec').value='';$('#cli').value='';$('#rtn').value='';$('#ctel').value='';$('#cven').value='';renderCart();
+  cart=[];nivel='n';$$('#niveles button').forEach(x=>x.classList.toggle('on',x.dataset.n==='n'));$('#rec').value='';$('#cli').value='';$('#rtn').value='';$('#ctel').value='';$('#cven').value='';renderCart();renderPOS();
   showRcpt({...v,id:vref.id});if(autoPrint.get())imprimir(rcptHTML(v),v.factura);
  }catch(e){toast(e.code==='invalid_argument'?'No tienes permiso para registrar ventas.':(e.message||'Error al guardar la venta'))}
  btn.disabled=false;btn.textContent='Cobrar';
@@ -312,12 +323,13 @@ $('#cobrar').onclick=async()=>{
 
 /* recibo */
 function rcptHTML(v){
- const A=AJ;const it=v.items.map(x=>`<div>${esc(x.nom)}</div><div class="rw"><span>${x.cant} x ${L(x.precio)}</span><span>${L(x.cant*x.precio)}</span></div>`).join('');
+ const A=AJ;const ahorro=v.items.reduce((a,x)=>a+Math.max(0,((x.normal||x.precio)-x.precio)*x.cant),0);
+ const it=v.items.map(x=>`<div>${esc(x.nom)}${x.nivel&&x.nivel!=='n'?' <small>('+(x.nivel==='m'?'por mayor':'descuento')+')</small>':''}</div><div class="rw"><span>${x.cant} x ${L(x.precio)}</span><span>${L(x.cant*x.precio)}</span></div>`).join('');
  const r=(a,b)=>`<div class="rw"><span>${a}</span><span>${b}</span></div>`;
  return`<div class="rcpt"><img src="${LOGO}" alt=""><div class="c"><b>${esc(A.nombre||'Vikingos Licor Store')}</b><br>${A.rtn?'RTN: '+esc(A.rtn)+'<br>':''}${A.dir?esc(A.dir)+'<br>':''}${A.tel?'Tel: '+esc(A.tel):''}</div><hr>
  ${A.cai?'<div>CAI: '+esc(A.cai)+'</div>':''}<div>Factura: <b>${esc(v.factura)}</b></div><div>Fecha: ${new Date(v.fecha).toLocaleString('es-HN')}</div><div>Cliente: ${esc(v.cliente)}</div>${v.rtn?'<div>RTN cliente: '+esc(v.rtn)+'</div>':''}<hr>${it}<hr>
  ${v.b15?r('Gravado 15%',L(v.b15))+r('ISV 15%',L(v.i15)):''}${v.b18?r('Gravado 18%',L(v.b18))+r('ISV 18%',L(v.i18)):''}${v.ex?r('Exento',L(v.ex)):''}
- <div class="rw" style="font-size:18px;font-weight:700;margin-top:4px"><span>TOTAL</span><span>${L(v.total)}</span></div>${v.pago==='Crédito'?r('Pago','CRÉDITO')+r('Abonado',L(abonado(v)))+r('<b>Saldo pendiente</b>','<b>'+L(saldo(v))+'</b>')+(v.vence?r('Vence',esc(fmtD(v.vence))):''):r('Pago: '+esc(v.pago),L(v.recibido))}${v.pago==='Efectivo'&&v.recibido>v.total?r('Cambio',L(v.recibido-v.total)):''}<hr>
+ ${ahorro>0.004?r('Usted ahorró',L(ahorro)):''}<div class="rw" style="font-size:18px;font-weight:700;margin-top:4px"><span>TOTAL</span><span>${L(v.total)}</span></div>${v.pago==='Crédito'?r('Pago','CRÉDITO')+r('Abonado',L(abonado(v)))+r('<b>Saldo pendiente</b>','<b>'+L(saldo(v))+'</b>')+(v.vence?r('Vence',esc(fmtD(v.vence))):''):r('Pago: '+esc(v.pago),L(v.recibido))}${v.pago==='Efectivo'&&v.recibido>v.total?r('Cambio',L(v.recibido-v.total)):''}<hr>
  ${A.r1?'<div>Rango autorizado: '+esc(A.r1)+' al '+esc(A.r2||'')+'</div>':''}${A.lim?'<div>Fecha límite de emisión: '+esc(A.lim)+'</div>':''}
  <div class="c" style="margin-top:6px">${esc(A.pie||'¡Gracias por su compra!')}</div>${v.anulada?'<div class="c" style="font-weight:700;margin-top:6px">*** ANULADA ***</div>':''}</div>`;
 }
@@ -339,7 +351,7 @@ function renderInv(){
  const list=P.filter(p=>(c==='Todas'||(p.cat||'Otros')===c)&&(!q||(p.nom+' '+p.cod).toLowerCase().includes(q))&&(!lowOnly||stock(p)<=(+p.min||0)));
  const unid=P.reduce((a,p)=>a+Math.max(0,stock(p)),0),val=P.reduce((a,p)=>a+Math.max(0,stock(p))*(+p.precio||0),0),cos=P.reduce((a,p)=>a+Math.max(0,stock(p))*(+p.costo||0),0),low=P.filter(p=>stock(p)<=(+p.min||0)).length;
  $('#ikpi').innerHTML=`<div class="kpi main"><span>Valor a precio de venta</span><b>${L(val)}</b></div><div class="kpi adm"><span>Valor a costo</span><b>${L(cos)}</b></div><div class="kpi"><span>Unidades en bodega</span><b>${unid}</b></div><div class="kpi"><span>Productos con stock bajo</span><b style="color:${low?'var(--warn)':'inherit'}">${low}</b></div>`;
- $('#itb').innerHTML=list.length?list.map(p=>{const s=stock(p);return`<tr class="${s<=(+p.min||0)?'low':''}"><td data-l="Código">${esc(p.cod)}</td><td data-l="Producto"><b>${esc(p.nom)}</b></td><td data-l="Categoría">${esc(p.cat)}</td><td class="r" data-l="Precio">${L(p.precio)}</td><td class="r adm" data-l="Costo">${L(p.costo)}</td><td class="r" data-l="Existencia"><b>${s}</b></td><td class="r" data-l="Mínimo">${+p.min||0}</td><td class="acts"><button class="ghost" data-a="ent" data-id="${esc(p.id)}">Entrada</button><button class="ghost adm" data-a="aj" data-id="${esc(p.id)}">Ajustar</button><button class="ghost adm" data-a="ed" data-id="${esc(p.id)}">Editar</button></td></tr>`}).join(''):`<tr><td colspan="8" class="empty">${P.length?'Nada coincide con el filtro.':'Sin productos todavía.'}</td></tr>`;
+ $('#itb').innerHTML=list.length?list.map(p=>{const s=stock(p);return`<tr class="${s<=(+p.min||0)?'low':''}"><td data-l="Código">${esc(p.cod)}</td><td data-l="Producto"><b>${esc(p.nom)}</b></td><td data-l="Categoría">${esc(p.cat)}</td><td class="r" data-l="Precio normal">${L(p.precio)}</td><td class="r" data-l="Con descuento">${+p.precioDesc>0?L(p.precioDesc):'—'}</td><td class="r" data-l="Por mayor">${+p.precioMay>0?L(p.precioMay):'—'}</td><td class="r adm" data-l="Precio de compra">${L(p.costo)}</td><td class="r" data-l="Existencia"><b>${s}</b></td><td class="r" data-l="Mínimo">${+p.min||0}</td><td class="acts"><button class="ghost" data-a="ent" data-id="${esc(p.id)}">Entrada</button><button class="ghost adm" data-a="aj" data-id="${esc(p.id)}">Ajustar</button><button class="ghost adm" data-a="ed" data-id="${esc(p.id)}">Editar</button></td></tr>`}).join(''):`<tr><td colspan="10" class="empty">${P.length?'Nada coincide con el filtro.':'Sin productos todavía.'}</td></tr>`;
 }
 $('#iq').oninput=renderInv;$('#icat').onchange=renderInv;
 $('#ilow').onclick=e=>{lowOnly=!lowOnly;e.target.classList.toggle('pri',lowOnly);e.target.classList.toggle('ghost',!lowOnly);renderInv()};
@@ -352,16 +364,24 @@ function prodForm(id){
  <label class="w">Nombre<input name="nom" required value="${esc(p.nom)}" placeholder="Ej. Flor de Caña 4 años 750 ml"></label>
  <label>Código de barras<input name="cod" value="${esc(p.cod)}"></label>
  <label>Categoría<input name="cat" list="dlc" value="${esc(p.cat)}" placeholder="Cervezas, Ron, Whisky…"><datalist id="dlc">${cats().slice(1).map(c=>`<option value="${esc(c)}">`).join('')}</datalist></label>
- <label>Precio de venta (L, con ISV)<input name="precio" type="number" step="0.01" min="0" required value="${esc(p.precio)}"></label>
- <label>Costo (L)<input name="costo" type="number" step="0.01" min="0" value="${esc(p.costo)}"></label>
+ <label>Precio normal (L, con ISV)<input name="precio" type="number" step="0.01" min="0" required value="${esc(p.precio)}"></label>
+ <label>Precio con descuento (L)<input name="precioDesc" type="number" step="0.01" min="0" value="${esc(+p.precioDesc>0?p.precioDesc:'')}" placeholder="Opcional"></label>
+ <label>Precio al por mayor (L)<input name="precioMay" type="number" step="0.01" min="0" value="${esc(+p.precioMay>0?p.precioMay:'')}" placeholder="Opcional"></label>
+ <label>Precio de compra (L)<input name="costo" type="number" step="0.01" min="0" value="${esc(p.costo)}"></label>
+ <div class="w note" id="fpMg"></div>
  <label>Impuesto<select name="isv"><option value="18" ${+p.isv===18?'selected':''}>ISV 18% (bebidas alcohólicas)</option><option value="15" ${+p.isv===15?'selected':''}>ISV 15%</option><option value="0" ${+p.isv===0?'selected':''}>Exento</option></select></label>
  <label>Stock mínimo<input name="min" type="number" min="0" value="${esc(p.min)}"></label>
  ${id?'':'<label class="w">Existencia inicial<input name="ini" type="number" min="0" value="0"></label>'}
  </form><div class="row">${id?'<button class="dng" id="fpDel">Eliminar</button>':''}<button class="ghost" id="fpX">Cancelar</button><button class="pri" id="fpOk">Guardar</button></div>`);
+ const mg=()=>{const f=$('#fp'),c=+f.costo.value;if(!c){$('#fpMg').textContent='';return}
+  $('#fpMg').innerHTML='Ganancia por unidad: '+[['Normal',+f.precio.value],['Descuento',+f.precioDesc.value],['Por mayor',+f.precioMay.value]].filter(x=>x[1]>0).map(([n,v])=>`${n} <b style="color:${v<c?'var(--warn)':'inherit'}">${L(v-c)}</b> (${Math.round((v-c)/v*100)}%)`).join(' · ')};
+ $('#fp').oninput=mg;mg();
  $('#fpX').onclick=()=>$('#dlg').close();
  if(id)$('#fpDel').onclick=async()=>{if($('#fpDel').dataset.c!=='1'){$('#fpDel').dataset.c='1';$('#fpDel').textContent='¿Seguro? Tocar otra vez';return}await db.doc('productos/'+id).delete();$('#dlg').close();toast('Producto eliminado')};
  $('#fpOk').onclick=async()=>{const f=$('#fp');if(!f.reportValidity())return;const d=Object.fromEntries(new FormData(f));
-  const body={nom:d.nom.trim(),cod:d.cod.trim(),cat:d.cat.trim()||'Otros',precio:+d.precio||0,costo:+d.costo||0,isv:+d.isv,min:+d.min||0};
+  const body={nom:d.nom.trim(),cod:d.cod.trim(),cat:d.cat.trim()||'Otros',precio:+d.precio||0,precioDesc:+d.precioDesc||0,precioMay:+d.precioMay||0,costo:+d.costo||0,isv:+d.isv,min:+d.min||0};
+  if(body.precioDesc&&body.precioDesc>body.precio){toast('El precio con descuento no puede ser mayor que el normal');return}
+  if(body.precioMay&&body.precioMay>body.precio){toast('El precio al por mayor no puede ser mayor que el normal');return}
   if(body.cod&&P.some(x=>x.cod===body.cod&&x.id!==id)){toast('Ese código ya existe');return}
   try{if(id)await db.doc('productos/'+id).update(body);else{const ini=+d.ini||0;await db.collection('productos').add({...body,movs:ini?{['i'+rid()]:ini}:{},creado:Date.now()})}
   $('#dlg').close();toast('Guardado')}catch(e){toast('No se pudo guardar')}};
