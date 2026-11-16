@@ -70,3 +70,13 @@ Para RESTAURAR un respaldo:
   Tus datos y respaldos NO se tocan.
 - La computadora debe estar encendida (y sin suspenderse) para que los celulares funcionen.
   El instalador desactiva la suspensión cuando está conectada a la corriente.
+
+6. USAR EL SISTEMA DESDE OTRA COMPUTADORA POR INTERNET (MODO CONECTADO)
+-----------------------------------------------------------------------
+Ejemplo: ver el restaurante en vivo desde tu casa.
+a) Instala Tailscale (gratis, https://tailscale.com/download) en la computadora del restaurante
+   y en la otra computadora, e inicia sesión con LA MISMA cuenta en las dos.
+b) En la otra computadora, abre SistemaRestaurante\config.json con el Bloc de notas y agrega:
+      "servidorRemoto": "100.x.x.x"      (la dirección de la compu del restaurante en Tailscale)
+c) Reinicia esa computadora. El icono del escritorio abrirá el sistema del restaurante.
+   Esa computadora no guarda datos propios ni imprime: todo queda en la del restaurante.

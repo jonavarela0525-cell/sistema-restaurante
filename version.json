@@ -1,10 +1,10 @@
 {
- "version": "1.6.0",
- "publicado": "2026-11-14T21:44:06",
+ "version": "1.6.1",
+ "publicado": "2026-11-16T10:30:30",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "89390db60642b9ff73af71e03ee92b633728a98eba3ceccb9baba06898653212",
+   "sha256": "7016d0adac6d760254d4944e059de6244507b4e00b9718222a2fd0958f47e3d7",
    "bytes": 34061
   },
   {
@@ -19,13 +19,13 @@
   },
   {
    "nombre": "iniciar.vbs",
-   "sha256": "5d1d8e25054e308f5c744d41f0ae30721c31895bd95d97bb36659dfb11457e4c",
-   "bytes": 2284
+   "sha256": "72df381e3b3c40a617cffa7a0b389d7f26765385f52187bf0211349f877f6dd7",
+   "bytes": 3189
   },
   {
    "nombre": "servidor.vbs",
-   "sha256": "f279c91249de11978df6ddda980126964f4b54c29c24193df8ef59b970d9f228",
-   "bytes": 471
+   "sha256": "07c94a7ad560f9ab14ddec3d0299d20d1c651ed9a2136b20abe51a24bd3e3fa0",
+   "bytes": 809
   },
   {
    "nombre": "detener.ps1",
@@ -49,8 +49,8 @@
   },
   {
    "nombre": "LEEME.txt",
-   "sha256": "30da84c785af8c5519bdb1530227dbf85abbda18d1f57f765dd78e0a6839215e",
-   "bytes": 4033
+   "sha256": "79f955fafb2bfe26eaa3515d9f53667e47b804648a67c16273a1e596ec252ba5",
+   "bytes": 4712
   }
  ]
 }
