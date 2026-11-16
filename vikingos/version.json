@@ -1,16 +1,16 @@
 {
- "version": "1.1.0",
- "publicado": "2026-11-15T17:03:01",
+ "version": "1.1.1",
+ "publicado": "2026-11-15T21:29:04",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "51af25544d01856df2704584087a282b839a6e1d9f2862343589b37a15524946",
+   "sha256": "af131a9a8eb9789a248dbde43790a9df9df713c2c449cb5b7ecdfcd237d9820f",
    "bytes": 41785
   },
   {
    "nombre": "app.html",
-   "sha256": "3c6ac7d3ea8aa230e97ced84e9e08df903f62e792fd84ed060a5d1621ef6f2ff",
-   "bytes": 173976
+   "sha256": "6b60e4602dfa409acf1d6ac3cf96459a13bf400d7a052f18ca6ba0098d2a17b5",
+   "bytes": 174073
   },
   {
    "nombre": "lanzador.js",
@@ -58,5 +58,5 @@
    "bytes": 44609
   }
  ],
- "cambios": "Cuatro precios por producto: normal, con descuento, al por mayor y de compra."
+ "cambios": "Texto visible en los campos de la pantalla de ingreso."
 }
