@@ -181,6 +181,7 @@ dialog::backdrop{background:#0009}
    <select id="icat"></select>
    <button class="ghost" id="ilow" style="flex:0 1 auto">Solo stock bajo</button>
    <button class="ghost" id="icatpdf" style="flex:0 1 auto">Catálogo PDF</button>
+   <button class="pri adm" id="isug" style="flex:0 1 auto;display:none">Fotos sugeridas</button>
    <button class="pri" id="ient" style="flex:0 1 auto">+ Entrada de mercadería</button>
    <button class="pri adm" id="inew" style="flex:0 1 auto">+ Producto nuevo</button>
   </div>
@@ -362,12 +363,13 @@ $('#iq').oninput=renderInv;$('#icat').onchange=renderInv;
 $('#ilow').onclick=e=>{lowOnly=!lowOnly;e.target.classList.toggle('pri',lowOnly);e.target.classList.toggle('ghost',!lowOnly);renderInv()};
 $('#inew').onclick=()=>prodForm();
 $('#ient').onclick=()=>entForm();
+$('#isug').onclick=sugeridasForm;
 $('#icatpdf').onclick=()=>{if(!P.length){toast('Primero crea productos');return}catalogoForm()};
 $('#itb').onclick=e=>{const b=e.target.closest('button[data-a]');if(!b)return;const id=b.dataset.id;({ent:entForm,aj:ajForm,ed:prodForm})[b.dataset.a](id)};
 function prodForm(id){
  const p=id?P.find(x=>x.id===id):{isv:18,min:6};
  dlg(`<h3>${id?'Editar producto':'Producto nuevo'}</h3><form class="form" id="fp">
- <div class="w fotoBox"><div class="fprev" id="fpImg">${+p.fotoV?`<img src="${esc(fotoURL(p))}" alt="">`:'Sin foto'}</div><div><label class="btnf">Elegir o tomar foto<input type="file" id="fpFile" accept="image/*" style="display:none"></label> <button type="button" class="ghost" id="fpQuitar" ${+p.fotoV?'':'style="display:none"'}>Quitar foto</button><p class="note" style="margin:6px 0 0">Se achica sola para que no pese.</p></div></div>
+ <div class="w fotoBox"><div class="fprev" id="fpImg">${+p.fotoV?`<img src="${esc(fotoURL(p))}" alt="">`:'Sin foto'}</div><div><label class="btnf">Elegir o tomar foto<input type="file" id="fpFile" accept="image/*" style="display:none"></label> <button type="button" class="ghost" id="fpQuitar" ${+p.fotoV?'':'style="display:none"'}>Quitar foto</button><p class="note" style="margin:6px 0 0">Se achica sola para que no pese.</p></div><div style="display:flex;gap:6px;width:100%"><input id="fpUrl" placeholder="…o pega el enlace de una imagen de internet" autocomplete="off"><button type="button" class="ghost" id="fpTraer">Traer</button></div></div>
  <label class="w">Nombre<input name="nom" required value="${esc(p.nom)}" placeholder="Ej. Flor de Caña 4 años 750 ml"></label>
  <label>Código de barras<input name="cod" value="${esc(p.cod)}"></label>
  <label>Categoría<input name="cat" list="dlc" value="${esc(p.cat)}" placeholder="Cervezas, Ron, Whisky…"><datalist id="dlc">${cats().slice(1).map(c=>`<option value="${esc(c)}">`).join('')}</datalist></label>
@@ -385,6 +387,7 @@ function prodForm(id){
  $('#fp').oninput=mg;mg();
  let nuevaFoto;
  $('#fpFile').onchange=async e=>{const fl=e.target.files[0];if(!fl)return;try{nuevaFoto=await reducirFoto(fl);$('#fpImg').innerHTML=`<img src="${nuevaFoto.img}" alt="">`;$('#fpQuitar').style.display=''}catch(er){toast(er.message)}};
+ $('#fpTraer').onclick=async()=>{const u=$('#fpUrl').value.trim();if(!/^https?:\/\//i.test(u)){toast('Pega un enlace que empiece con http');return}$('#fpTraer').disabled=true;$('#fpTraer').textContent='Trayendo…';try{nuevaFoto=await fotoDesdeWeb(u);$('#fpImg').innerHTML=`<img src="${nuevaFoto.img}" alt="">`;$('#fpQuitar').style.display=''}catch(er){toast(er.message)}$('#fpTraer').disabled=false;$('#fpTraer').textContent='Traer'};
  $('#fpQuitar').onclick=()=>{nuevaFoto=null;$('#fpImg').textContent='Sin foto';$('#fpQuitar').style.display='none';$('#fpFile').value=''};
  $('#fpX').onclick=()=>$('#dlg').close();
  if(id)$('#fpDel').onclick=async()=>{if($('#fpDel').dataset.c!=='1'){$('#fpDel').dataset.c='1';$('#fpDel').textContent='¿Seguro? Tocar otra vez';return}await db.doc('productos/'+id).delete();if(+p.fotoV)await db.doc('fotos/'+id).delete().catch(()=>{});$('#dlg').close();toast('Producto eliminado')};
@@ -862,16 +865,46 @@ async function armarCatalogo(lista,o){
  return pdf.generar();
 }
 
+/* ---------- FOTOS DESDE INTERNET ---------- */
+const webURL=u=>'/api/imagenWeb?url='+encodeURIComponent(u)+'&t='+encodeURIComponent(API.token);
+async function fotoDesdeWeb(u){const r=await fetch(webURL(u));if(!r.ok){let m='No se pudo traer la imagen';try{m=(await r.json()).error||m}catch(e){}throw new Error(m)}return reducirFoto(await r.blob())}
+async function guardarFoto(pid,f){await db.doc('fotos/'+pid).set(f);await db.doc('productos/'+pid).update({fotoV:Date.now()})}
+let SUG=[];
+const omitidas={get(){try{return JSON.parse(localStorage.getItem('vk_sug_omit')||'[]')}catch(e){return[]}},add(id){try{const a=this.get();a.push(id);localStorage.setItem('vk_sug_omit',JSON.stringify(a))}catch(e){}}};
+const sugPend=()=>SUG.filter(s=>{const p=P.find(x=>x.id===s.id);return p&&!+p.fotoV&&(s.opciones||[]).length&&!omitidas.get().includes(s.id)});
+async function cargarSug(){if(!admin)return;try{SUG=(await api('fotosSugeridas')).productos||[]}catch(e){SUG=[]}renderSugBtn()}
+function renderSugBtn(){const b=$('#isug');if(!b)return;const n=admin?sugPend().length:0;b.style.display=n?'':'none';b.textContent='Fotos sugeridas ('+n+')'}
+function sugeridasForm(){
+ const lista=sugPend();if(!lista.length){toast('No hay fotos sugeridas pendientes');return}
+ const elec={};
+ dlg(`<h3>Fotos sugeridas de internet</h3><p class="note">Toca la imagen que corresponde a tu producto (misma marca, sabor y tamaño). Si ninguna sirve, déjalo sin elegir o toca "Ninguna".</p>
+ <div id="sugL" style="max-height:60vh;overflow:auto">${lista.map(s=>{const p=P.find(x=>x.id===s.id);return`<div class="sugR" data-id="${esc(s.id)}" style="border-top:1px solid var(--line);padding:10px 0"><b>${esc(p.nom)}</b><div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">${s.opciones.slice(0,4).map((u,i)=>`<button type="button" class="sugO" data-i="${i}" style="width:96px;height:96px;padding:4px;background:#fff;border:2px solid var(--line);border-radius:10px"><img src="${esc(webURL(u))}" alt="Opción ${i+1}" loading="lazy" style="max-width:100%;max-height:100%;object-fit:contain" onerror="this.closest('button').style.display='none'"></button>`).join('')}<button type="button" class="ghost sugN" style="height:96px">Ninguna</button></div></div>`}).join('')}</div>
+ <div class="note" id="sugMsg"></div><div class="row"><button class="ghost" id="sugX">Cerrar</button><button class="pri" id="sugOk">Guardar las elegidas (0)</button></div>`);
+ const cnt=()=>{$('#sugOk').textContent='Guardar las elegidas ('+Object.keys(elec).length+')'};
+ $('#sugL').onclick=e=>{const r=e.target.closest('.sugR');if(!r)return;const id=r.dataset.id,s=lista.find(x=>x.id===id);
+  const o=e.target.closest('.sugO'),n=e.target.closest('.sugN');
+  r.querySelectorAll('.sugO').forEach(b=>b.style.borderColor='var(--line)');r.querySelector('.sugN').classList.remove('pri');
+  if(o){if(elec[id]===s.opciones[+o.dataset.i]){delete elec[id]}else{elec[id]=s.opciones[+o.dataset.i];o.style.borderColor='var(--acc)'}}
+  else if(n){delete elec[id];elec['__n_'+id]=1;delete elec['__n_'+id];omitidas.add(id);n.classList.add('pri')}
+  cnt()};
+ $('#sugX').onclick=()=>{$('#dlg').close();renderSugBtn()};
+ $('#sugOk').onclick=async()=>{const ids=Object.keys(elec);if(!ids.length){toast('Toca una imagen para elegirla');return}
+  const b=$('#sugOk');b.disabled=true;let ok=0,mal=[];
+  for(const id of ids){$('#sugMsg').textContent=`Guardando ${ok+mal.length+1} de ${ids.length}…`;
+   try{await guardarFoto(id,await fotoDesdeWeb(elec[id]));ok++}catch(e){mal.push((P.find(x=>x.id===id)||{}).nom||id)}}
+  $('#dlg').close();renderSugBtn();toast(ok+' foto(s) guardadas'+(mal.length?'. No se pudieron traer: '+mal.join(', '):''))};
+}
+
 /* ---------- ARRANQUE ---------- */
 renderPOS();renderCart();renderInv();renderV();renderCR();
 function iniciarDatos(){
  if(started)return;started=true;db=localDb;
  conectarEventos();
  db.collection('productos').onSnapshot(s=>{P=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.nom).localeCompare(b.nom));
-  cart=cart.filter(it=>P.some(p=>p.id===it.id));renderPOS();renderCart();renderInv();renderV()},e=>toast(e.message));
+  cart=cart.filter(it=>P.some(p=>p.id===it.id));renderPOS();renderCart();renderInv();renderV();renderSugBtn()},e=>toast(e.message));
  db.collection('ventas').where('pago','==','Crédito').limit(20000).onSnapshot(s=>{CR=s.docs.map(d=>({id:d.id,...d.data()}));renderCR();renderV()},()=>{});
  db.doc('ajustes/negocio').onSnapshot(s=>{AJ=s.exists?s.data():{};renderAj()},()=>{});
- subV();if(admin){cargarUsuarios();cargarBk()}
+ subV();if(admin){cargarUsuarios();cargarBk();cargarSug()}
 }
 (async()=>{
  await cargarEstado();

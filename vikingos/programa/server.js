@@ -14,7 +14,7 @@ const crypto = require('crypto');
 process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante';
 const CARPETA_ACTUALIZACIONES = 'vikingos/';
 const BASE = __dirname;
@@ -521,6 +521,27 @@ async function api(req, res, url) {
     res.writeHead(200, { 'Content-Type': m[1], 'Content-Length': buf.length, 'Cache-Control': 'private, max-age=31536000, immutable' });
     return res.end(buf);
   }
+  if (route === 'imagenWeb' && req.method === 'GET') {
+    if (!isAdmin(u)) throw err(403, 'Solo el administrador');
+    let dest; try { dest = new URL(url.searchParams.get('url') || ''); } catch (_) { throw err(400, 'Enlace inválido'); }
+    if (!/^https?:$/.test(dest.protocol)) throw err(400, 'Enlace inválido');
+    let r;
+    try { r = await fetch(dest, { signal: AbortSignal.timeout(20000), redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36', Accept: 'image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8' } }); }
+    catch (e) { throw err(502, 'No se pudo descargar la imagen (sin internet o la página no respondió)'); }
+    if (!r.ok) throw err(502, 'La página de la imagen respondió ' + r.status);
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > 12 * 1024 * 1024) throw err(413, 'La imagen es demasiado grande');
+    const tipo = buf[0] === 0xFF && buf[1] === 0xD8 ? 'image/jpeg' : buf.subarray(1, 4).toString() === 'PNG' ? 'image/png' : buf.subarray(8, 12).toString() === 'WEBP' ? 'image/webp' : buf.subarray(0, 3).toString() === 'GIF' ? 'image/gif' : '';
+    if (!tipo) throw err(415, 'Ese enlace no es una imagen');
+    res.writeHead(200, { 'Content-Type': tipo, 'Content-Length': buf.length, 'Cache-Control': 'private, max-age=86400' });
+    return res.end(buf);
+  }
+  if (route === 'fotosSugeridas' && req.method === 'GET') {
+    if (!isAdmin(u)) throw err(403, 'Solo el administrador');
+    let d = { productos: [] };
+    try { d = JSON.parse(fs.readFileSync(path.join(BASE, 'fotos_sugeridas.json'), 'utf8')); } catch (_) { }
+    return send(res, 200, d);
+  }
   if (route === 'usuarios' && req.method === 'GET') return send(res, 200, { usuarios: usuarios().map(publicUser) });
   if (route === 'usuarios' && req.method === 'POST') {
     if (!isAdmin(u)) throw err(403, 'Solo el administrador');
@@ -671,7 +692,7 @@ const ANT = path.join(BASE, 'version_anterior');
 const UPD = { estado: 'sin revisar', ultimaRevision: null, disponible: null, error: null };
 let ultimaEscritura = 0;
 const repoAct = () => String(CFG.repoActualizaciones || REPO_ACTUALIZACIONES || '');
-const PROTEGIDOS = new Set(['config.json', 'importar.json']);
+const PROTEGIDOS = new Set(['config.json', 'importar.json', 'fotos_sugeridas.json']);
 const NOMBRE_OK = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,80}\.(js|html|vbs|ps1|bat|txt|md|ico)$/;
 function cmpVer(a, b) { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; }
 const hayActividad = () => Date.now() - ultimaEscritura < 3 * 60000;

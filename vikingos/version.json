@@ -1,16 +1,16 @@
 {
- "version": "1.2.0",
- "publicado": "2026-11-18T23:18:09",
+ "version": "1.3.0",
+ "publicado": "2026-11-18T23:37:54",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "6336c44069021fa3be724f73d7e0eaa9ceed84254995ef73a73a5e663314fc71",
-   "bytes": 43232
+   "sha256": "d51d3af3d0859badb0e747849d8dd1dae22fd4851a67eaee37cd39b092e83f8f",
+   "bytes": 44972
   },
   {
    "nombre": "app.html",
-   "sha256": "5da87d8ca5d1e3563915a0c28c9ccc249c271191c3aeb966f1e48c158940c452",
-   "bytes": 189566
+   "sha256": "53c69f4d91445cc9f0b833d30b6446e44a68fa566967c6e93602d01b9d70b72a",
+   "bytes": 194050
   },
   {
    "nombre": "lanzador.js",
@@ -58,5 +58,5 @@
    "bytes": 44609
   }
  ],
- "cambios": "Foto de referencia por producto y catálogos en PDF (general y por categoría)."
+ "cambios": "Fotos desde internet: pegar enlace en el producto y pantalla de fotos sugeridas."
 }
