@@ -1,16 +1,16 @@
 {
- "version": "1.1.1",
- "publicado": "2026-11-15T21:29:04",
+ "version": "1.1.2",
+ "publicado": "2026-11-18T22:35:13",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "af131a9a8eb9789a248dbde43790a9df9df713c2c449cb5b7ecdfcd237d9820f",
+   "sha256": "eb1ef8a7d78c598c1a0930004e0d715cdd14f92a2ec6c351532be09f96d7fcfd",
    "bytes": 41785
   },
   {
    "nombre": "app.html",
-   "sha256": "6b60e4602dfa409acf1d6ac3cf96459a13bf400d7a052f18ca6ba0098d2a17b5",
-   "bytes": 174073
+   "sha256": "42d75d0e5e17dc77f23e6f8ef8a991610318dae2a3ac51f4be1c8b5f0dcb0584",
+   "bytes": 174172
   },
   {
    "nombre": "lanzador.js",
@@ -58,5 +58,5 @@
    "bytes": 44609
   }
  ],
- "cambios": "Texto visible en los campos de la pantalla de ingreso."
+ "cambios": "Corrige: no se podían guardar productos nuevos."
 }

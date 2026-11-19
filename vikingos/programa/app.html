@@ -384,7 +384,7 @@ function prodForm(id){
   if(body.precioMay&&body.precioMay>body.precio){toast('El precio al por mayor no puede ser mayor que el normal');return}
   if(body.cod&&P.some(x=>x.cod===body.cod&&x.id!==id)){toast('Ese código ya existe');return}
   try{if(id)await db.doc('productos/'+id).update(body);else{const ini=+d.ini||0;await db.collection('productos').add({...body,movs:ini?{['i'+rid()]:ini}:{},creado:Date.now()})}
-  $('#dlg').close();toast('Guardado')}catch(e){toast('No se pudo guardar')}};
+  $('#dlg').close();toast('Guardado')}catch(e){toast('No se pudo guardar: '+(e.message||'error'))}};
 }
 function pickOpts(sel){return P.map(p=>`<option value="${esc(p.id)}" ${p.id===sel?'selected':''}>${esc(p.nom)} (${stock(p)})</option>`).join('')}
 function entForm(id){
@@ -535,7 +535,8 @@ function qref(col,filters,orderBy,limit){
   limit:n=>qref(col,filters,orderBy,n),
   get:async()=>{const r=await api('op',{op:'query',col,filters,orderBy,limit});const docs=r.docs.map(d=>snapDoc(d.id,d.data));return{docs,size:docs.length,empty:!docs.length,docChanges:()=>[],metadata:{fromCache:false,hasPendingWrites:false}}},
   onSnapshot:(next,error)=>escuchar(col,async()=>{try{next(await q.get())}catch(e){if(e.code!=='unavailable'&&error)error(e)}}),
-  doc:id=>dref(col+'/'+(id||rid()))};
+  doc:id=>dref(col+'/'+(id||rid())),
+  add:async data=>{const r=dref(col+'/'+rid());await r.set(data);return r}};
  return q}
 function dref(path){
  const col=path.split('/').slice(0,-1).join('/');
