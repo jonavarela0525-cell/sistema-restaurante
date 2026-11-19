@@ -1,16 +1,16 @@
 {
- "version": "1.1.2",
- "publicado": "2026-11-18T22:35:13",
+ "version": "1.2.0",
+ "publicado": "2026-11-18T23:18:09",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "eb1ef8a7d78c598c1a0930004e0d715cdd14f92a2ec6c351532be09f96d7fcfd",
-   "bytes": 41785
+   "sha256": "6336c44069021fa3be724f73d7e0eaa9ceed84254995ef73a73a5e663314fc71",
+   "bytes": 43232
   },
   {
    "nombre": "app.html",
-   "sha256": "42d75d0e5e17dc77f23e6f8ef8a991610318dae2a3ac51f4be1c8b5f0dcb0584",
-   "bytes": 174172
+   "sha256": "5da87d8ca5d1e3563915a0c28c9ccc249c271191c3aeb966f1e48c158940c452",
+   "bytes": 189566
   },
   {
    "nombre": "lanzador.js",
@@ -58,5 +58,5 @@
    "bytes": 44609
   }
  ],
- "cambios": "Corrige: no se podían guardar productos nuevos."
+ "cambios": "Foto de referencia por producto y catálogos en PDF (general y por categoría)."
 }

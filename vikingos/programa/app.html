@@ -59,7 +59,11 @@ h2{font:700 28px/1.05 "Grenze Gotisch",serif;margin:0 0 12px}
 .qty{display:flex;align-items:center;gap:2px}.qty button{min-height:34px;width:34px;padding:0;background:#ece5da;color:#1f1712}
 .qty span{width:30px;text-align:center;font-weight:600}
 .line select{min-height:30px;padding:2px 6px;font-size:13px;border-radius:6px;margin-top:3px;width:auto;background:#fff;color:#1f1712;border-color:#d9d0c4}
-.niv{margin:0 0 10px}.prod s{font-size:13px;color:var(--mut);font-weight:400;margin-left:6px}
+.niv{margin:0 0 10px}
+.prod .ft{height:86px;margin:-4px -4px 4px;border-radius:10px;background:light-dark(#f6f2ec,#2a201a);display:flex;align-items:center;justify-content:center;overflow:hidden}.prod .ft img{max-width:100%;max-height:100%;object-fit:contain}
+.mini{width:40px;height:40px;object-fit:contain;border-radius:6px;background:#fff;vertical-align:middle;margin-right:8px;border:1px solid var(--line)}
+.fotoBox{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.fprev{width:120px;height:120px;border-radius:12px;border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;background:light-dark(#f6f2ec,#2a201a);color:var(--mut);font-size:13px;text-align:center}.fprev img{max-width:100%;max-height:100%;object-fit:contain}
+.btnf{display:inline-flex;align-items:center;min-height:44px;padding:8px 16px;border-radius:10px;border:1px solid var(--line);cursor:pointer;font-weight:600;color:var(--ink)}.prod s{font-size:13px;color:var(--mut);font-weight:400;margin-left:6px}
 .line .t{font-weight:600;white-space:nowrap;text-align:right;width:84px}
 .empty{color:var(--mut);text-align:center;padding:24px 8px}.ticket .empty{color:#8a7c70}
 .tot{display:flex;justify-content:space-between;font-size:15px;padding:2px 0}.tot.big{font:700 30px "Barlow Condensed";padding-top:8px;border-top:2px solid #1f1712;margin-top:6px}
@@ -176,6 +180,7 @@ dialog::backdrop{background:#0009}
    <input id="iq" placeholder="Buscar en inventario">
    <select id="icat"></select>
    <button class="ghost" id="ilow" style="flex:0 1 auto">Solo stock bajo</button>
+   <button class="ghost" id="icatpdf" style="flex:0 1 auto">Catálogo PDF</button>
    <button class="pri" id="ient" style="flex:0 1 auto">+ Entrada de mercadería</button>
    <button class="pri adm" id="inew" style="flex:0 1 auto">+ Producto nuevo</button>
   </div>
@@ -262,7 +267,7 @@ function renderPOS(){
  $('#cats').innerHTML=cats().map(c=>`<button class="${c===cat?'on':''}" data-c="${esc(c)}">${esc(c)}</button>`).join('');
  const q=$('#q').value.trim().toLowerCase();
  const list=P.filter(p=>(cat==='Todas'||(p.cat||'Otros')===cat)&&(!q||(p.nom+' '+p.cod).toLowerCase().includes(q)));
- $('#grid').innerHTML=list.length?list.map(p=>{const s=stock(p);return`<button class="prod" data-id="${esc(p.id)}" ${s<=0?'disabled':''}><b>${esc(p.nom)}</b><span class="st ${s<=(+p.min||0)?'low':''}">${s<=0?'Agotado':s+' en existencia'}</span><span class="pr">${L(precioDe(p,nivel))}${nivelDe(p,nivel)!=='n'?`<s>${L(p.precio)}</s>`:''}</span></button>`}).join(''):`<div class="empty" style="grid-column:1/-1">${P.length?'Ningún producto coincide con la búsqueda.':'Todavía no hay productos. Créalos en Inventario.'}</div>`;
+ $('#grid').innerHTML=list.length?list.map(p=>{const s=stock(p);return`<button class="prod" data-id="${esc(p.id)}" ${s<=0?'disabled':''}>${+p.fotoV?`<span class="ft"><img src="${esc(fotoURL(p))}" alt="" loading="lazy"></span>`:''}<b>${esc(p.nom)}</b><span class="st ${s<=(+p.min||0)?'low':''}">${s<=0?'Agotado':s+' en existencia'}</span><span class="pr">${L(precioDe(p,nivel))}${nivelDe(p,nivel)!=='n'?`<s>${L(p.precio)}</s>`:''}</span></button>`}).join(''):`<div class="empty" style="grid-column:1/-1">${P.length?'Ningún producto coincide con la búsqueda.':'Todavía no hay productos. Créalos en Inventario.'}</div>`;
 }
 const NIV={n:'Normal',d:'Descuento',m:'Por mayor'};let nivel='n';
 const precioDe=(p,nv)=>nv==='d'&&+p.precioDesc>0?+p.precioDesc:nv==='m'&&+p.precioMay>0?+p.precioMay:+p.precio;
@@ -351,16 +356,18 @@ function renderInv(){
  const list=P.filter(p=>(c==='Todas'||(p.cat||'Otros')===c)&&(!q||(p.nom+' '+p.cod).toLowerCase().includes(q))&&(!lowOnly||stock(p)<=(+p.min||0)));
  const unid=P.reduce((a,p)=>a+Math.max(0,stock(p)),0),val=P.reduce((a,p)=>a+Math.max(0,stock(p))*(+p.precio||0),0),cos=P.reduce((a,p)=>a+Math.max(0,stock(p))*(+p.costo||0),0),low=P.filter(p=>stock(p)<=(+p.min||0)).length;
  $('#ikpi').innerHTML=`<div class="kpi main"><span>Valor a precio de venta</span><b>${L(val)}</b></div><div class="kpi adm"><span>Valor a costo</span><b>${L(cos)}</b></div><div class="kpi"><span>Unidades en bodega</span><b>${unid}</b></div><div class="kpi"><span>Productos con stock bajo</span><b style="color:${low?'var(--warn)':'inherit'}">${low}</b></div>`;
- $('#itb').innerHTML=list.length?list.map(p=>{const s=stock(p);return`<tr class="${s<=(+p.min||0)?'low':''}"><td data-l="Código">${esc(p.cod)}</td><td data-l="Producto"><b>${esc(p.nom)}</b></td><td data-l="Categoría">${esc(p.cat)}</td><td class="r" data-l="Precio normal">${L(p.precio)}</td><td class="r" data-l="Con descuento">${+p.precioDesc>0?L(p.precioDesc):'—'}</td><td class="r" data-l="Por mayor">${+p.precioMay>0?L(p.precioMay):'—'}</td><td class="r adm" data-l="Precio de compra">${L(p.costo)}</td><td class="r" data-l="Existencia"><b>${s}</b></td><td class="r" data-l="Mínimo">${+p.min||0}</td><td class="acts"><button class="ghost" data-a="ent" data-id="${esc(p.id)}">Entrada</button><button class="ghost adm" data-a="aj" data-id="${esc(p.id)}">Ajustar</button><button class="ghost adm" data-a="ed" data-id="${esc(p.id)}">Editar</button></td></tr>`}).join(''):`<tr><td colspan="10" class="empty">${P.length?'Nada coincide con el filtro.':'Sin productos todavía.'}</td></tr>`;
+ $('#itb').innerHTML=list.length?list.map(p=>{const s=stock(p);return`<tr class="${s<=(+p.min||0)?'low':''}"><td data-l="Código">${esc(p.cod)}</td><td data-l="Producto">${+p.fotoV?`<img class="mini" src="${esc(fotoURL(p))}" alt="" loading="lazy">`:''}<b>${esc(p.nom)}</b></td><td data-l="Categoría">${esc(p.cat)}</td><td class="r" data-l="Precio normal">${L(p.precio)}</td><td class="r" data-l="Con descuento">${+p.precioDesc>0?L(p.precioDesc):'—'}</td><td class="r" data-l="Por mayor">${+p.precioMay>0?L(p.precioMay):'—'}</td><td class="r adm" data-l="Precio de compra">${L(p.costo)}</td><td class="r" data-l="Existencia"><b>${s}</b></td><td class="r" data-l="Mínimo">${+p.min||0}</td><td class="acts"><button class="ghost" data-a="ent" data-id="${esc(p.id)}">Entrada</button><button class="ghost adm" data-a="aj" data-id="${esc(p.id)}">Ajustar</button><button class="ghost adm" data-a="ed" data-id="${esc(p.id)}">Editar</button></td></tr>`}).join(''):`<tr><td colspan="10" class="empty">${P.length?'Nada coincide con el filtro.':'Sin productos todavía.'}</td></tr>`;
 }
 $('#iq').oninput=renderInv;$('#icat').onchange=renderInv;
 $('#ilow').onclick=e=>{lowOnly=!lowOnly;e.target.classList.toggle('pri',lowOnly);e.target.classList.toggle('ghost',!lowOnly);renderInv()};
 $('#inew').onclick=()=>prodForm();
 $('#ient').onclick=()=>entForm();
+$('#icatpdf').onclick=()=>{if(!P.length){toast('Primero crea productos');return}catalogoForm()};
 $('#itb').onclick=e=>{const b=e.target.closest('button[data-a]');if(!b)return;const id=b.dataset.id;({ent:entForm,aj:ajForm,ed:prodForm})[b.dataset.a](id)};
 function prodForm(id){
  const p=id?P.find(x=>x.id===id):{isv:18,min:6};
  dlg(`<h3>${id?'Editar producto':'Producto nuevo'}</h3><form class="form" id="fp">
+ <div class="w fotoBox"><div class="fprev" id="fpImg">${+p.fotoV?`<img src="${esc(fotoURL(p))}" alt="">`:'Sin foto'}</div><div><label class="btnf">Elegir o tomar foto<input type="file" id="fpFile" accept="image/*" style="display:none"></label> <button type="button" class="ghost" id="fpQuitar" ${+p.fotoV?'':'style="display:none"'}>Quitar foto</button><p class="note" style="margin:6px 0 0">Se achica sola para que no pese.</p></div></div>
  <label class="w">Nombre<input name="nom" required value="${esc(p.nom)}" placeholder="Ej. Flor de Caña 4 años 750 ml"></label>
  <label>Código de barras<input name="cod" value="${esc(p.cod)}"></label>
  <label>Categoría<input name="cat" list="dlc" value="${esc(p.cat)}" placeholder="Cervezas, Ron, Whisky…"><datalist id="dlc">${cats().slice(1).map(c=>`<option value="${esc(c)}">`).join('')}</datalist></label>
@@ -376,14 +383,19 @@ function prodForm(id){
  const mg=()=>{const f=$('#fp'),c=+f.costo.value;if(!c){$('#fpMg').textContent='';return}
   $('#fpMg').innerHTML='Ganancia por unidad: '+[['Normal',+f.precio.value],['Descuento',+f.precioDesc.value],['Por mayor',+f.precioMay.value]].filter(x=>x[1]>0).map(([n,v])=>`${n} <b style="color:${v<c?'var(--warn)':'inherit'}">${L(v-c)}</b> (${Math.round((v-c)/v*100)}%)`).join(' · ')};
  $('#fp').oninput=mg;mg();
+ let nuevaFoto;
+ $('#fpFile').onchange=async e=>{const fl=e.target.files[0];if(!fl)return;try{nuevaFoto=await reducirFoto(fl);$('#fpImg').innerHTML=`<img src="${nuevaFoto.img}" alt="">`;$('#fpQuitar').style.display=''}catch(er){toast(er.message)}};
+ $('#fpQuitar').onclick=()=>{nuevaFoto=null;$('#fpImg').textContent='Sin foto';$('#fpQuitar').style.display='none';$('#fpFile').value=''};
  $('#fpX').onclick=()=>$('#dlg').close();
- if(id)$('#fpDel').onclick=async()=>{if($('#fpDel').dataset.c!=='1'){$('#fpDel').dataset.c='1';$('#fpDel').textContent='¿Seguro? Tocar otra vez';return}await db.doc('productos/'+id).delete();$('#dlg').close();toast('Producto eliminado')};
+ if(id)$('#fpDel').onclick=async()=>{if($('#fpDel').dataset.c!=='1'){$('#fpDel').dataset.c='1';$('#fpDel').textContent='¿Seguro? Tocar otra vez';return}await db.doc('productos/'+id).delete();if(+p.fotoV)await db.doc('fotos/'+id).delete().catch(()=>{});$('#dlg').close();toast('Producto eliminado')};
  $('#fpOk').onclick=async()=>{const f=$('#fp');if(!f.reportValidity())return;const d=Object.fromEntries(new FormData(f));
   const body={nom:d.nom.trim(),cod:d.cod.trim(),cat:d.cat.trim()||'Otros',precio:+d.precio||0,precioDesc:+d.precioDesc||0,precioMay:+d.precioMay||0,costo:+d.costo||0,isv:+d.isv,min:+d.min||0};
   if(body.precioDesc&&body.precioDesc>body.precio){toast('El precio con descuento no puede ser mayor que el normal');return}
   if(body.precioMay&&body.precioMay>body.precio){toast('El precio al por mayor no puede ser mayor que el normal');return}
   if(body.cod&&P.some(x=>x.cod===body.cod&&x.id!==id)){toast('Ese código ya existe');return}
-  try{if(id)await db.doc('productos/'+id).update(body);else{const ini=+d.ini||0;await db.collection('productos').add({...body,movs:ini?{['i'+rid()]:ini}:{},creado:Date.now()})}
+  try{const pid=id||rid();if(id)await db.doc('productos/'+id).update(body);else{const ini=+d.ini||0;await db.doc('productos/'+pid).set({...body,movs:ini?{['i'+rid()]:ini}:{},creado:Date.now()})}
+  if(nuevaFoto){await db.doc('fotos/'+pid).set(nuevaFoto);await db.doc('productos/'+pid).update({fotoV:Date.now()})}
+  else if(nuevaFoto===null&&id&&+p.fotoV){await db.doc('fotos/'+pid).delete();await db.doc('productos/'+pid).update({fotoV:0})}
   $('#dlg').close();toast('Guardado')}catch(e){toast('No se pudo guardar: '+(e.message||'error'))}};
 }
 function pickOpts(sel){return P.map(p=>`<option value="${esc(p.id)}" ${p.id===sel?'selected':''}>${esc(p.nom)} (${stock(p)})</option>`).join('')}
@@ -563,7 +575,7 @@ function conectarEventos(){
  };abrir();
 }
 async function esperarYRecargar(){for(let i=0;i<60;i++){await sleep(1000);try{const x=await fetch('/api/estado');if(x.ok){location.reload();return}}catch(e){}}}
-async function save(filename,data){const b=new Blob([data],{type:filename.endsWith('.csv')?'text/csv':filename.endsWith('.html')?'text/html':'application/octet-stream'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000)}
+async function save(filename,data){const b=new Blob([data],{type:filename.endsWith('.csv')?'text/csv':filename.endsWith('.html')?'text/html':filename.endsWith('.pdf')?'application/pdf':'application/octet-stream'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000)}
 function imprimir(inner,titulo){
  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(titulo||'Factura')}</title><style>body{margin:0}${RC_CSS}.rcpt{border:0;max-width:80mm;width:72mm}</style></head><body>${inner}<script>window.onload=function(){var h=Math.ceil(document.body.scrollHeight*25.4/96)+6;var s=document.createElement('style');s.textContent='@page{size:80mm '+Math.max(60,h)+'mm;margin:0}';document.head.appendChild(s);setTimeout(function(){window.print()},150)}<\/script></body></html>`;
  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);f.srcdoc=html;setTimeout(()=>f.remove(),60000)}
@@ -723,6 +735,132 @@ function renderEquipo(){
  $('#upNow').onclick=async()=>{toast('Buscando…');try{UPDI=await api('actualizacion',{accion:'revisar'});renderEquipo();toast(UPDI.error||UPDI.estado)}catch(er){toast(er.message)}};
 }
 async function cargarBk(){if(!admin)return;try{BKI=await api('respaldos');UPDI=await api('actualizacion');renderEquipo()}catch(e){}}
+
+/* ---------- FOTOS DE PRODUCTOS ---------- */
+const fotoURL=p=>p&&+p.fotoV?'/api/foto?id='+encodeURIComponent(p.id)+'&v='+p.fotoV+'&t='+encodeURIComponent(API.token):'';
+async function reducirFoto(file){
+ const url=URL.createObjectURL(file);const im=new Image();
+ try{await new Promise((ok,no)=>{im.onload=ok;im.onerror=()=>no(new Error('No se pudo leer la imagen'));im.src=url})}finally{setTimeout(()=>URL.revokeObjectURL(url),1000)}
+ const M=520,k=Math.min(1,M/Math.max(im.naturalWidth,im.naturalHeight));const w=Math.max(1,Math.round(im.naturalWidth*k)),h=Math.max(1,Math.round(im.naturalHeight*k));
+ const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);
+ return{img:c.toDataURL('image/jpeg',0.8),w,h};
+}
+
+/* ---------- CATÁLOGOS EN PDF ---------- */
+const PDFW={"Helvetica":[278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584,350,556,350,222,556,333,1000,556,556,333,1000,667,333,1000,350,611,350,350,222,222,333,333,350,556,1000,333,1000,500,333,944,350,500,667,278,333,556,556,556,556,260,556,333,737,370,556,584,333,737,333,400,584,333,333,333,556,537,278,333,333,365,556,834,834,834,611,667,667,667,667,667,667,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,500,556,556,556,556,278,278,278,278,556,556,556,556,556,556,556,584,611,556,556,556,556,500,556,500],"Helvetica-Bold":[278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584,350,556,350,278,556,500,1000,556,556,333,1000,667,333,1000,350,611,350,350,278,278,500,500,350,556,1000,333,1000,556,333,944,350,500,667,278,333,556,556,556,556,280,556,333,737,370,556,584,333,737,333,400,584,333,333,333,611,556,278,333,333,365,556,834,834,834,611,722,722,722,722,722,722,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,556,556,556,556,556,278,278,278,278,611,611,611,611,611,611,611,584,611,611,611,611,611,556,611,556]};
+const CP1252={8364:128,8218:130,402:131,8222:132,8230:133,8224:134,8225:135,710:136,8240:137,352:138,8249:139,338:140,381:142,8216:145,8217:146,8220:147,8221:148,8226:149,8211:150,8212:151,732:152,8482:153,353:154,8250:155,339:156,382:158,376:159};
+const winCode=ch=>{const c=ch.charCodeAt(0);return c<128||(c>159&&c<256)?c:(CP1252[c]||63)};
+const anchoTxt=(t,f,sz)=>{const w=PDFW[f==='F2'?'Helvetica-Bold':'Helvetica'];let s=0;for(const ch of String(t)){const c=winCode(ch);s+=c>=32?w[c-32]:0}return s*sz/1000};
+function partirTxt(t,f,sz,max,lineas){
+ const pal=String(t).split(/\s+/).filter(Boolean),out=[];let l='';
+ for(const w of pal){const p=l?l+' '+w:w;if(anchoTxt(p,f,sz)<=max){l=p;continue}if(l)out.push(l);l=w;while(anchoTxt(l,f,sz)>max&&l.length>1){let k=l.length-1;while(k>1&&anchoTxt(l.slice(0,k),f,sz)>max)k--;out.push(l.slice(0,k));l=l.slice(k)}}
+ if(l)out.push(l);
+ if(out.length>lineas){const r=out.slice(0,lineas);let u=r[lineas-1];while(u.length>1&&anchoTxt(u+'…',f,sz)>max)u=u.slice(0,-1);r[lineas-1]=u+'…';return r}
+ return out;
+}
+function nuevoPDF(){
+ const imgs=[],pags=[];let cur=null;
+ const esc2=t=>{let o='';for(const ch of String(t)){const c=winCode(ch);o+=c===40||c===41||c===92?'\\'+String.fromCharCode(c):String.fromCharCode(c)}return o};
+ const col=h=>{const n=parseInt(h.slice(1),16);return[(n>>16&255)/255,(n>>8&255)/255,(n&255)/255].map(v=>v.toFixed(3)).join(' ')};
+ return{
+  W:595.28,H:841.89,
+  pagina(){cur=[];pags.push(cur);return pags.length},
+  rect(x,y,w,h,fill,stroke){cur.push('q '+(fill?col(fill)+' rg ':'')+(stroke?col(stroke)+' RG 0.6 w ':'')+x.toFixed(2)+' '+(this.H-y-h).toFixed(2)+' '+w.toFixed(2)+' '+h.toFixed(2)+' re '+(fill&&stroke?'B':fill?'f':'S')+' Q')},
+  texto(t,x,y,sz,f,color,alin){const w=anchoTxt(t,f||'F1',sz);if(alin==='c')x-=w/2;else if(alin==='r')x-=w;cur.push('BT /'+(f||'F1')+' '+sz+' Tf '+col(color||'#1f1712')+' rg '+x.toFixed(2)+' '+(this.H-y).toFixed(2)+' Td ('+esc2(t)+') Tj ET')},
+  imagen(bytes,iw,ih,x,y,w,h){const k=imgs.length+1;imgs.push({bytes,iw,ih});cur.push('q '+w.toFixed(2)+' 0 0 '+h.toFixed(2)+' '+x.toFixed(2)+' '+(this.H-y-h).toFixed(2)+' cm /Im'+k+' Do Q')},
+  get paginas(){return pags.length},
+  pie(fn,color,m){const tot=pags.length;pags.forEach((c,i)=>{cur=c;const t=fn(i+1);this.rect(m,this.H-38,this.W-2*m,0.6,'#ddd4c9');this.texto(t.izq,m,this.H-24,8,'F1',color);this.texto(t.der,this.W-m,this.H-24,8,'F1',color,'r')})},
+  generar(){
+   const enc=new TextEncoder(),partes=[],offs=[];let len=0;
+   const bin=s=>{const b=new Uint8Array(s.length);for(let i=0;i<s.length;i++)b[i]=s.charCodeAt(i)&255;return b};
+   const add=b=>{partes.push(b);len+=b.length};
+   const obj=(n,cuerpo,stream)=>{offs[n]=len;add(bin(n+' 0 obj\n'+cuerpo+(stream?'\nstream\n':'\nendobj\n')));if(stream){add(stream);add(bin('\nendstream\nendobj\n'))}};
+   add(bin('%PDF-1.4\n%\xe2\xe3\xcf\xd3\n'));
+   const nImg0=5,nPag0=nImg0+imgs.length;
+   obj(1,'<< /Type /Catalog /Pages 2 0 R >>');
+   obj(3,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+   obj(4,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+   imgs.forEach((im,i)=>obj(nImg0+i,'<< /Type /XObject /Subtype /Image /Width '+im.iw+' /Height '+im.ih+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+im.bytes.length+' >>',im.bytes));
+   const xo='<< '+imgs.map((_,i)=>'/Im'+(i+1)+' '+(nImg0+i)+' 0 R').join(' ')+' >>';
+   const kids=[];
+   pags.forEach((c,i)=>{const nP=nPag0+i*2,nC=nP+1;kids.push(nP+' 0 R');const s=bin(c.join('\n'));
+    obj(nP,'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+this.W+' '+this.H+'] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject '+xo+' >> /Contents '+nC+' 0 R >>');
+    obj(nC,'<< /Length '+s.length+' >>',s)});
+   obj(2,'<< /Type /Pages /Kids ['+kids.join(' ')+'] /Count '+pags.length+' >>');
+   const total=nPag0+pags.length*2,xref=len;
+   let x='xref\n0 '+total+'\n0000000000 65535 f \n';for(let i=1;i<total;i++)x+=String(offs[i]).padStart(10,'0')+' 00000 n \n';
+   add(bin(x+'trailer\n<< /Size '+total+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF\n'));
+   return new Blob(partes,{type:'application/pdf'});
+  }
+ };
+}
+function imgAJpeg(src,max){return new Promise((ok,no)=>{const im=new Image();im.onload=()=>{const k=Math.min(1,(max||600)/Math.max(im.naturalWidth,im.naturalHeight));const w=Math.max(1,Math.round(im.naturalWidth*k)),h=Math.max(1,Math.round(im.naturalHeight*k));const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);
+ const b=atob(c.toDataURL('image/jpeg',0.85).split(',')[1]);const u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);ok({bytes:u,w,h})};im.onerror=()=>no(new Error('imagen'));im.src=src})}
+function catalogoForm(){
+ const cs=cats().slice(1);
+ dlg(`<h3>Catálogo de productos</h3><form class="form" id="fcat">
+ <label class="w">Qué productos<select name="cat"><option value="">Catálogo general (todas las categorías)</option>${cs.map(c=>`<option value="${esc(c)}">Solo ${esc(c)}</option>`).join('')}</select></label>
+ <label class="w">Título (opcional)<input name="titulo" placeholder="Ej. Ofertas de diciembre"></label>
+ <div class="w"><div class="note" style="margin-bottom:6px">Precios que se muestran (el precio de compra nunca sale en el catálogo)</div>
+ <label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" name="pn" checked style="width:auto;min-height:0"> Precio normal</label>
+ <label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" name="pd" style="width:auto;min-height:0"> Precio con descuento</label>
+ <label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" name="pm" style="width:auto;min-height:0"> Precio al por mayor</label></div>
+ <label class="w" style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" name="stock" checked style="width:auto;min-height:0"> Solo productos con existencia</label>
+ </form><div class="note" id="catInfo"></div><div class="row"><button class="ghost" id="catX">Cancelar</button><button class="pri" id="catOk">Generar PDF</button></div>`);
+ const f=$('#fcat'),info=()=>{const n=catProds(f).length;$('#catInfo').textContent=n+' producto(s) en el catálogo.'};f.onchange=info;info();
+ $('#catX').onclick=()=>$('#dlg').close();
+ $('#catOk').onclick=async()=>{const pr=['pn','pd','pm'].filter(k=>f[k].checked);if(!pr.length){toast('Elige al menos un precio');return}
+  const lista=catProds(f);if(!lista.length){toast('No hay productos con esos filtros');return}
+  const b=$('#catOk');b.disabled=true;b.textContent='Armando el PDF…';
+  try{const blob=await armarCatalogo(lista,{cat:f.cat.value,titulo:f.titulo.value.trim(),pr});
+   const fecha=dia(Date.now());await save('Catalogo-'+(f.cat.value||'general').replace(/[^\w]+/g,'_')+'-'+fecha+'.pdf',blob);
+   $('#dlg').close();toast('Catálogo listo: quedó en la carpeta Descargas')}catch(e){toast('No se pudo armar el catálogo: '+e.message);b.disabled=false;b.textContent='Generar PDF'}};
+}
+function catProds(f){return P.filter(p=>(!f.cat.value||(p.cat||'Otros')===f.cat.value)&&(!f.stock.checked||stock(p)>0)).sort((a,b)=>String(a.cat||'Otros').localeCompare(String(b.cat||'Otros'))||String(a.nom).localeCompare(String(b.nom)))}
+async function armarCatalogo(lista,o){
+ const pdf=nuevoPDF(),W=pdf.W,H=pdf.H,M=34,G=10,COLS=3,CW=(W-2*M-G*(COLS-1))/COLS,IMG=112,NOMBRE=AJ.nombre||'Vikingos Licor Store';
+ const WOOD='#2e1c13',BONE='#f4ead9',ACC='#1f6f78',MUT='#7a6c60',LINE='#ddd4c9';
+ let logo=null;try{logo=await imgAJpeg(LOGO,420)}catch(e){}
+ const titulo=o.titulo||(o.cat?'Catálogo · '+o.cat:'Catálogo general');
+ const fechaTxt=new Date().toLocaleDateString('es-HN',{day:'numeric',month:'long',year:'numeric'});
+ const nlin=Math.max(1,(o.pr.includes('pn')?1:0)+(o.pr.includes('pd')&&lista.some(p=>+p.precioDesc>0)?1:0)+(o.pr.includes('pm')&&lista.some(p=>+p.precioMay>0)?1:0));const CH=IMG+16+30+nlin*15+6;
+ let y=0;
+ const encabezado=()=>{pdf.pagina();pdf.rect(0,0,W,96,WOOD);
+  let tx=M;if(logo){const h=70,w=logo.w*h/logo.h;pdf.imagen(logo.bytes,logo.w,logo.h,M,13,w,h);tx=M+w+16}
+  pdf.texto(NOMBRE,tx,40,20,'F2',BONE);pdf.texto(titulo,tx,60,13,'F1',BONE);pdf.texto(fechaTxt,tx,78,9.5,'F1','#d9c8b0');
+  if(AJ.tel)pdf.texto('Pedidos: '+AJ.tel,W-M,40,11,'F2',BONE,'r');
+  if(AJ.dir)partirTxt(AJ.dir,'F1',9,170,2).forEach((l,i)=>pdf.texto(l,W-M,56+i*11,9,'F1','#d9c8b0','r'));
+  y=96+20};
+ encabezado();
+ const fotos={};
+ for(const p of lista){if(+p.fotoV){try{fotos[p.id]=await imgAJpeg(fotoURL(p),500)}catch(e){}}}
+ let catAct=null,colI=0;
+ const nuevaFila=()=>{colI=0;y+=CH+G};
+ for(const p of lista){
+  const c=p.cat||'Otros';
+  if(!o.cat&&c!==catAct){
+   if(colI>0)nuevaFila();
+   if(y+26+CH>H-50){encabezado()}
+   pdf.rect(M,y,W-2*M,24,'#efe7da');pdf.rect(M,y,4,24,ACC);pdf.texto(c,M+12,y+16.5,13,'F2',WOOD);y+=24+10;catAct=c}
+  if(colI===0&&y+CH>H-50)encabezado();
+  const x=M+colI*(CW+G);
+  pdf.rect(x,y,CW,CH,'#ffffff',LINE);
+  pdf.rect(x+6,y+6,CW-12,IMG,'#f6f2ec');
+  const f=fotos[p.id];
+  if(f){const k=Math.min((CW-16)/f.w,(IMG-4)/f.h),w=f.w*k,h=f.h*k;pdf.imagen(f.bytes,f.w,f.h,x+6+(CW-12-w)/2,y+6+(IMG-h)/2,w,h)}
+  else{pdf.texto((p.nom||'?').trim().charAt(0).toUpperCase(),x+CW/2,y+6+IMG/2+16,44,'F2','#d6cbbd','c')}
+  let ty=y+IMG+20;
+  partirTxt(p.nom,'F2',10.5,CW-14,2).forEach((l,i)=>pdf.texto(l,x+7,ty+i*12.5,10.5,'F2','#1f1712'));
+  ty+=30;
+  if(o.pr.includes('pn')){pdf.texto(L(p.precio),x+7,ty,13.5,'F2',ACC);ty+=15}
+  if(o.pr.includes('pd')&&+p.precioDesc>0){pdf.texto('Descuento: '+L(p.precioDesc),x+7,ty,9.5,'F1','#1f1712');ty+=15}
+  if(o.pr.includes('pm')&&+p.precioMay>0){pdf.texto('Por mayor: '+L(p.precioMay),x+7,ty,9.5,'F1','#1f1712');ty+=15}
+  if(!o.pr.includes('pn')&&ty===y+IMG+50){pdf.texto(L(p.precio),x+7,ty,13.5,'F2',ACC)}
+  colI++;if(colI===COLS)nuevaFila();
+ }
+ pdf.pie(n=>({izq:NOMBRE+(AJ.tel?' · Tel. '+AJ.tel:'')+' · Precios en lempiras, incluyen ISV, sujetos a cambio.',der:'Página '+n+' de '+pdf.paginas}),MUT,M);
+ return pdf.generar();
+}
 
 /* ---------- ARRANQUE ---------- */
 renderPOS();renderCart();renderInv();renderV();renderCR();

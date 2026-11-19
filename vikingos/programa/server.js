@@ -14,7 +14,7 @@ const crypto = require('crypto');
 process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 
-const VERSION = '1.1.2';
+const VERSION = '1.2.0';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante';
 const CARPETA_ACTUALIZACIONES = 'vikingos/';
 const BASE = __dirname;
@@ -334,7 +334,7 @@ async function sincronizar() {
     let arbol = [];
     try { arbol = (await gh('GET', `/repos/${repo}/git/trees/${encodeURIComponent(rama)}?recursive=1`)).tree || []; }
     catch (e) { if (e.status !== 409 && e.status !== 404) throw e; } // repositorio vacío
-    const remotos = new Map(arbol.filter(t => t.type === 'blob' && /^ops\/[A-Za-z0-9]+\/\d{4}-\d{2}-\d{2}\.jsonl$/.test(t.path)).map(t => [t.path, t.sha]));
+    const remotos = new Map(arbol.filter(t => t.type === 'blob' && /^ops\/[A-Za-z0-9]+\/\d{4}-\d{2}-\d{2}(-\d+)?\.jsonl$/.test(t.path)).map(t => [t.path, t.sha]));
     // 2) bajar lo que cambió en las otras computadoras
     const tocados = new Set(); let nuevas = 0;
     for (const [p, sha] of remotos) {
@@ -358,21 +358,37 @@ async function sincronizar() {
     if (tocados.size) { emitir([...new Set([...tocados].map(colOf))]); log(`Sincronización: ${nuevas} cambios recibidos de otras computadoras.`); }
     // 3) subir lo de esta computadora
     const dias = db.prepare('SELECT DISTINCT dia FROM ops WHERE dev=? AND subido=0 ORDER BY dia').all(DEV).map(r => r.dia);
+    const shaGit = buf => crypto.createHash('sha1').update(Buffer.concat([Buffer.from('blob ' + buf.length + '\0'), buf])).digest('hex');
+    let cortado = false;
     for (const dia of dias) {
       const filas = db.prepare('SELECT id,seq,ts,path,op,data FROM ops WHERE dev=? AND dia=? ORDER BY seq').all(DEV, dia);
       const maxSeq = filas.length ? filas[filas.length - 1].seq : 0;
-      const texto = filas.map(f => JSON.stringify({ id: f.id, d: DEV, s: f.seq, t: f.ts, p: f.path, o: f.op, ...(f.data != null ? { v: JSON.parse(f.data) } : {}) })).join('\n') + '\n';
-      const ruta = `ops/${DEV}/${dia}.jsonl`;
-      const cuerpo = { message: `${CFG.equipo || DEV}: ${filas.length} cambios del ${dia}`, content: Buffer.from(texto).toString('base64'), branch: rama };
-      const shaPrev = remotos.get(ruta); if (shaPrev) cuerpo.sha = shaPrev;
-      try {
-        const r = await gh('PUT', `/repos/${repo}/contents/${ruta}`, cuerpo);
-        db.prepare('UPDATE ops SET subido=1 WHERE dev=? AND dia=? AND seq<=?').run(DEV, dia, maxSeq);
-        if (r && r.content && r.content.sha) remotos.set(ruta, r.content.sha);
-      } catch (e) {
-        if (e.status === 409 || e.status === 422) { log('Sincronización: el archivo cambió mientras se subía; se reintenta.'); pedirSync(5000); break; }
-        throw e;
+      // archivos de hasta ~700 KB (las fotos pesan): dia.jsonl, dia-2.jsonl, dia-3.jsonl...
+      const partes = []; let actual = [], tam = 0;
+      for (const f of filas) {
+        const linea = JSON.stringify({ id: f.id, d: DEV, s: f.seq, t: f.ts, p: f.path, o: f.op, ...(f.data != null ? { v: JSON.parse(f.data) } : {}) }) + '\n';
+        const n = Buffer.byteLength(linea);
+        if (actual.length && tam + n > (Number(process.env.VK_PARTE_MAX) || 700000)) { partes.push(actual.join('')); actual = []; tam = 0; }
+        actual.push(linea); tam += n;
       }
+      if (actual.length) partes.push(actual.join(''));
+      for (let k = 0; k < partes.length; k++) {
+        const ruta = `ops/${DEV}/${dia}${k ? '-' + (k + 1) : ''}.jsonl`;
+        const buf = Buffer.from(partes[k]);
+        const shaPrev = remotos.get(ruta);
+        if (shaPrev && shaPrev === shaGit(buf)) continue; // ya está igual en GitHub
+        const cuerpo = { message: `${CFG.equipo || DEV}: cambios del ${dia}${k ? ' (parte ' + (k + 1) + ')' : ''}`, content: buf.toString('base64'), branch: rama };
+        if (shaPrev) cuerpo.sha = shaPrev;
+        try {
+          const r = await gh('PUT', `/repos/${repo}/contents/${ruta}`, cuerpo);
+          if (r && r.content && r.content.sha) remotos.set(ruta, r.content.sha);
+        } catch (e) {
+          if (e.status === 409 || e.status === 422) { log('Sincronización: el archivo cambió mientras se subía; se reintenta.'); pedirSync(5000); cortado = true; break; }
+          throw e;
+        }
+      }
+      if (cortado) break;
+      db.prepare('UPDATE ops SET subido=1 WHERE dev=? AND dia=? AND seq<=?').run(DEV, dia, maxSeq);
     }
     SYNC.pendientes = db.prepare('SELECT COUNT(*) n FROM ops WHERE dev=? AND subido=0').get(DEV).n;
     SYNC.ultimo = Date.now(); setMeta('ultimaSync', SYNC.ultimo);
@@ -494,6 +510,16 @@ async function api(req, res, url) {
     res.write('retry: 2000\n\n');
     clientes.add(res); req.on('close', () => clientes.delete(res));
     return;
+  }
+  if (route === 'foto' && req.method === 'GET') {
+    const id = url.searchParams.get('id') || '';
+    if (!SEG.test(id)) throw err(400, 'Foto inválida');
+    const d = readDoc('fotos/' + id);
+    const m = d && typeof d.img === 'string' && d.img.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);
+    if (!m) throw err(404, 'Sin foto');
+    const buf = Buffer.from(m[2], 'base64');
+    res.writeHead(200, { 'Content-Type': m[1], 'Content-Length': buf.length, 'Cache-Control': 'private, max-age=31536000, immutable' });
+    return res.end(buf);
   }
   if (route === 'usuarios' && req.method === 'GET') return send(res, 200, { usuarios: usuarios().map(publicUser) });
   if (route === 'usuarios' && req.method === 'POST') {
