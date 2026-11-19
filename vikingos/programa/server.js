@@ -14,7 +14,7 @@ const crypto = require('crypto');
 process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante';
 const CARPETA_ACTUALIZACIONES = 'vikingos/';
 const BASE = __dirname;
@@ -196,6 +196,14 @@ function checkWrite(u, op, p, data, existe) {
       // cajeros: descontar por venta (v...) o registrar entradas de mercadería (e..., positivas)
       if (op === 'update' && existe && soloClaves(data, ['movs']) && isObj(data.movs) &&
         Object.entries(data.movs).every(([k, v]) => (k[0] === 'v' && Number(v) < 0) || (k[0] === 'e' && Number(v) > 0))) return;
+      NO(); break;
+    case 'gastos':
+      // cajeros: registrar gastos nuevos (anularlos solo el administrador)
+      if (op === 'set' && !existe && isObj(data) && Number(data.monto) > 0) return;
+      NO(); break;
+    case 'arqueos':
+      // cajeros: guardar el arqueo del día de hoy
+      if (op === 'set' && isObj(data) && data.dia === diaLocal(Date.now()) && p.split('/')[1].startsWith(data.dia + '_')) return;
       NO(); break;
     default: NO();
   }

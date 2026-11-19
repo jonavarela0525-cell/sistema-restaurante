@@ -1,16 +1,16 @@
 {
- "version": "1.3.0",
- "publicado": "2026-11-18T23:37:54",
+ "version": "1.4.0",
+ "publicado": "2026-11-18T23:54:19",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "d51d3af3d0859badb0e747849d8dd1dae22fd4851a67eaee37cd39b092e83f8f",
-   "bytes": 44972
+   "sha256": "7f6eee01af16437d8ab6784e43408395877e89d3d58baaacec62c621bda5888b",
+   "bytes": 45391
   },
   {
    "nombre": "app.html",
-   "sha256": "53c69f4d91445cc9f0b833d30b6446e44a68fa566967c6e93602d01b9d70b72a",
-   "bytes": 194050
+   "sha256": "7c842f6c78c52d57e4babde412f869ac358c33d8e504facad62c76f68a67a56d",
+   "bytes": 215162
   },
   {
    "nombre": "lanzador.js",
@@ -58,5 +58,5 @@
    "bytes": 44609
   }
  ],
- "cambios": "Fotos desde internet: pegar enlace en el producto y pantalla de fotos sugeridas."
+ "cambios": "Pestaña Caja (gastos del día y arqueo) y pestaña Reportes (reporte diario con PDF e impresión)."
 }

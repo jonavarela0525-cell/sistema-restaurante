@@ -60,6 +60,8 @@ h2{font:700 28px/1.05 "Grenze Gotisch",serif;margin:0 0 12px}
 .qty span{width:30px;text-align:center;font-weight:600}
 .line select{min-height:30px;padding:2px 6px;font-size:13px;border-radius:6px;margin-top:3px;width:auto;background:#fff;color:#1f1712;border-color:#d9d0c4}
 .niv{margin:0 0 10px}
+.rh{margin:0 0 10px;font:700 19px 'Barlow Condensed'}.den label{font-size:13px}.den input{min-height:40px;padding:6px 8px}
+@media(max-width:900px){#v-caja .cols{grid-template-columns:1fr!important}}
 .prod .ft{height:86px;margin:-4px -4px 4px;border-radius:10px;background:light-dark(#f6f2ec,#2a201a);display:flex;align-items:center;justify-content:center;overflow:hidden}.prod .ft img{max-width:100%;max-height:100%;object-fit:contain}
 .mini{width:40px;height:40px;object-fit:contain;border-radius:6px;background:#fff;vertical-align:middle;margin-right:8px;border:1px solid var(--line)}
 .fotoBox{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.fprev{width:120px;height:120px;border-radius:12px;border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;background:light-dark(#f6f2ec,#2a201a);color:var(--mut);font-size:13px;text-align:center}.fprev img{max-width:100%;max-height:100%;object-fit:contain}
@@ -145,6 +147,8 @@ dialog::backdrop{background:#0009}
   <button role="tab" data-v="inventario" aria-selected="false">Inventario</button>
   <button role="tab" data-v="ventas" aria-selected="false" id="tabV">Ventas</button>
   <button role="tab" data-v="creditos" aria-selected="false">Créditos</button>
+  <button role="tab" data-v="caja" aria-selected="false">Caja</button>
+  <button role="tab" data-v="reportes" aria-selected="false" class="adm">Reportes</button>
   <button role="tab" data-v="usuarios" aria-selected="false" class="adm">Usuarios</button>
   <button role="tab" data-v="ajustes" aria-selected="false" class="adm">Ajustes</button>
  </nav>
@@ -220,6 +224,33 @@ dialog::backdrop{background:#0009}
   <div class="adm" id="equipoBox"></div>
  </section>
 
+ <section class="view" id="v-caja">
+  <h2 style="margin-bottom:4px">Caja del día</h2><p class="note" id="cjFecha" style="margin-top:0"></p>
+  <div class="kpis" id="cjKpi"></div>
+  <div class="cols" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+   <div class="card"><h3 class="rh">Registrar gasto</h3>
+    <form class="form" id="fGasto" style="grid-template-columns:1fr 1fr"><label class="w">Descripción<input name="desc" required placeholder="Ej. Pago de luz, compra de hielo, taxi…" autocomplete="off"></label>
+    <label>Tipo de gasto<select name="cat"><option>Compra de mercadería</option><option>Servicios (luz, agua, internet)</option><option>Alquiler</option><option>Sueldos</option><option>Transporte</option><option>Limpieza</option><option>Otros</option></select></label>
+    <label>Monto (L)<input name="monto" type="number" step="0.01" min="0.01" required inputmode="decimal"></label>
+    <label>Se pagó con<select name="pago"><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option></select></label>
+    <div style="display:flex;align-items:end"><button class="pri" style="width:100%">Agregar gasto</button></div></form>
+    <h3 class="rh" style="margin-top:18px">Gastos de hoy</h3>
+    <div class="scroll"><table class="stack"><tbody id="cjG"></tbody></table></div></div>
+   <div class="card" id="arq"><h3 class="rh">Arqueo de caja</h3>
+    <form class="form" onsubmit="return false" style="grid-template-columns:1fr"><label>Fondo inicial (con cuánto abrió la caja)<input id="aqFondo" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></label></form>
+    <p class="note" style="margin:12px 0 6px">Cuenta el efectivo: escribe cuántos billetes y monedas hay de cada uno.</p>
+    <div class="form den" style="grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px"><label>L 500<input id="aq_500" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label><label>L 200<input id="aq_200" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label><label>L 100<input id="aq_100" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label><label>L 50<input id="aq_50" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label><label>L 20<input id="aq_20" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label><label>L 10<input id="aq_10" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label><label>L 5<input id="aq_5" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label><label>L 2<input id="aq_2" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label><label>L 1<input id="aq_1" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label><label>L 0.5<input id="aq_0_5" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label><label>L 0.2<input id="aq_0_2" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label><label>L 0.1<input id="aq_0_1" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label><label>L 0.05<input id="aq_0_05" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label></div>
+    <div id="aqRes" style="margin-top:14px"></div>
+    <label class="note" style="display:block;margin-top:8px">Nota (opcional)<input id="aqNota" placeholder="Ej. faltante por cambio mal dado"></label>
+    <div class="row" style="justify-content:flex-start"><button class="pri" id="aqGuardar">Guardar arqueo</button><button class="ghost" id="aqPrint">Imprimir arqueo</button></div></div>
+  </div>
+ </section>
+
+ <section class="view" id="v-reportes">
+  <div class="bar"><h2 style="flex:1 1 auto;margin:0">Reporte diario</h2><input type="date" id="rpDia" style="flex:0 1 180px"><select id="rpEq" style="flex:0 1 200px"></select><button class="ghost" id="rpPrint" style="flex:0 1 auto">Imprimir</button><button class="pri" id="rpPdf" style="flex:0 1 auto">Descargar PDF</button></div>
+  <div class="kpis" id="rpKpi"></div><div id="rpBody"></div>
+ </section>
+
  <section class="view" id="v-creditos">
   <div class="bar"><input id="cq" placeholder="Buscar cliente o factura"><select id="cfil" style="flex:0 1 220px"><option value="p">Con saldo pendiente</option><option value="v">Solo vencidos</option><option value="t">Todos</option></select></div>
   <div class="kpis" id="ckpi"></div>
@@ -260,7 +291,7 @@ const banner=m=>{const b=$('#banner');b.textContent=m||'';b.style.display=m?'blo
 const setSync=(s,c)=>{$('#sync').textContent=s;$('#dot').className='dot '+(c||'')};
 
 /* pestañas */
-$$('nav button').forEach(b=>b.onclick=()=>{$$('nav button').forEach(x=>x.setAttribute('aria-selected',x===b));$$('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+b.dataset.v));if(b.dataset.v==='vender')$('#q').focus()});
+$$('nav button').forEach(b=>b.onclick=()=>{if(b.dataset.v==='caja'&&db&&cajaDia!==dia(Date.now()))subCaja();if(b.dataset.v==='reportes'&&db&&!$('#rpDia').value)subRep();$$('nav button').forEach(x=>x.setAttribute('aria-selected',x===b));$$('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+b.dataset.v));if(b.dataset.v==='vender')$('#q').focus()});
 
 /* ---------- VENDER ---------- */
 function cats(){return['Todas',...[...new Set(P.map(p=>p.cat||'Otros'))].sort()]}
@@ -292,7 +323,7 @@ function renderCart(){
 function cambio(){const t=totals(cart).t,r=+$('#rec').value;$('#cambio').textContent=pago==='Efectivo'&&r?(r>=t?'Cambio: '+L(r-t):'Faltan '+L(t-r)):''}
 function add(id){const p=P.find(x=>x.id===id);if(!p)return;const s=stock(p),it=cart.find(x=>x.id===id);
  if((it?it.cant:0)+1>s){toast('No hay más existencia de '+p.nom);return}
- it?it.cant++:cart.push({id:p.id,cod:p.cod||'',nom:p.nom,precio:precioDe(p,nivel),nivel:nivelDe(p,nivel),normal:+p.precio,isv:+p.isv||0,cant:1});renderCart()}
+ it?it.cant++:cart.push({id:p.id,cod:p.cod||'',nom:p.nom,precio:precioDe(p,nivel),nivel:nivelDe(p,nivel),normal:+p.precio,isv:+p.isv||0,costo:+p.costo||0,cant:1});renderCart()}
 $('#grid').onclick=e=>{const b=e.target.closest('.prod');if(b)add(b.dataset.id)};
 $('#cats').onclick=e=>{const b=e.target.closest('button');if(b){cat=b.dataset.c;renderPOS()}};
 $('#q').oninput=renderPOS;
@@ -477,7 +508,7 @@ function abonoForm(cliente,facts,total){
   const r=+f.r.value||0;if(f.p.value==='Efectivo'&&r&&r<m){toast('El efectivo recibido no alcanza');return}
   $('#abOk').disabled=true;const ts=Date.now(),g='g'+rid(),det=[];let rest=m;
   try{for(const v of facts){if(rest<=0.001)break;const s=saldo(v),ap=+Math.min(rest,s).toFixed(2);
-    await db.doc('ventas/'+v.id).update({abonos:{['a'+rid()]:{monto:ap,ts,pago:f.p.value,por:S?.nombre||'',porId:S?.id||'',grupo:g,tipo:ap>=s-0.001&&m>=sd-0.001?'cancelacion':'abono'}}});
+    await db.doc('ventas/'+v.id).update({abonos:{['a'+rid()]:{monto:ap,ts,pago:f.p.value,por:S?.nombre||'',porId:S?.id||'',equipo:EST.equipo||'',grupo:g,tipo:ap>=s-0.001&&m>=sd-0.001?'cancelacion':'abono'}}});
     det.push({f:v.factura,antes:s,ap,despues:+(s-ap).toFixed(2)});rest=+(rest-ap).toFixed(2)}
    comprobante({cliente,det,pago:f.p.value,m,rec:r,antes:sd,despues:+(sd-m).toFixed(2),ts,total:m>=sd-0.001});
   }catch(e){toast('No se pudo registrar el pago'+(det.length?' completo; revisa la cuenta del cliente':''));$('#abOk').disabled=false}};
@@ -895,6 +926,109 @@ function sugeridasForm(){
   $('#dlg').close();renderSugBtn();toast(ok+' foto(s) guardadas'+(mal.length?'. No se pudieron traer: '+mal.join(', '):''))};
 }
 
+/* ---------- CAJA: GASTOS Y ARQUEO ---------- */
+const DENOM=[500,200,100,50,20,10,5,2,1,0.5,0.2,0.1,0.05];
+const CATG=['Compra de mercadería','Servicios (luz, agua, internet)','Alquiler','Sueldos','Transporte','Limpieza','Otros'];
+let GD=[],ARQ=null,unG=null,unA=null,cajaDia='',cajaEq='';
+const eqKey=e=>String(e||'equipo').replace(/[^A-Za-z0-9_-]+/g,'_').slice(0,40)||'equipo';
+function abonosDe(d,eq){const out=[];CR.forEach(v=>{if(v.anulada)return;Object.values(v.abonos||{}).forEach(a=>{if(dia(a.ts)===d&&(!eq||!a.equipo||a.equipo===eq))out.push({...a,factura:v.factura,cliente:v.cliente})})});return out}
+function subCaja(){
+ if(!db)return;cajaDia=dia(Date.now());cajaEq=EST.equipo||'';
+ unG&&unG();unG=db.collection('gastos').where('dia','==',cajaDia).onSnapshot(s=>{GD=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.ts-a.ts);renderCaja()},()=>{});
+ unA&&unA();unA=db.doc('arqueos/'+cajaDia+'_'+eqKey(cajaEq)).onSnapshot(s=>{ARQ=s.exists?s.data():null;renderCaja(true)},()=>{});
+ subCajaVentas();
+}
+let VD=[],unVD=null;
+function subCajaVentas(){unVD&&unVD();unVD=db.collection('ventas').where('dia','==',cajaDia).onSnapshot(s=>{VD=s.docs.map(d=>({id:d.id,...d.data()}));renderCaja()},()=>{})}
+function cuentaCaja(){
+ const eq=cajaEq,vs=VD.filter(v=>!v.anulada&&(!v.equipo||v.equipo===eq));
+ const porPago=p=>vs.filter(v=>v.pago===p).reduce((a,v)=>a+v.total,0);
+ const ab=abonosDe(cajaDia,eq),abEf=ab.filter(a=>a.pago==='Efectivo').reduce((s,a)=>s+a.monto,0);
+ const gs=GD.filter(g=>!g.anulado&&(!g.equipo||g.equipo===eq)),gEf=gs.filter(g=>g.pago==='Efectivo').reduce((s,g)=>s+g.monto,0);
+ const fondo=+($('#aqFondo')?.value||0);
+ return{ef:porPago('Efectivo'),tj:porPago('Tarjeta'),tr:porPago('Transferencia'),cr:porPago('Crédito'),abEf,abOtros:ab.filter(a=>a.pago!=='Efectivo').reduce((s,a)=>s+a.monto,0),gEf,gTot:gs.reduce((s,g)=>s+g.monto,0),fondo,esperado:fondo+porPago('Efectivo')+abEf-gEf,n:vs.length};
+}
+function contado(){return DENOM.reduce((s,d)=>s+d*(+($('#aq_'+String(d).replace('.','_'))?.value||0)),0)}
+function renderCaja(cargarArq){
+ if(!$('#cjG'))return;
+ $('#cjFecha').textContent=new Date().toLocaleDateString('es-HN',{weekday:'long',day:'numeric',month:'long'})+' · Caja: '+(cajaEq||'este equipo');
+ $('#cjG').innerHTML=GD.length?GD.map(g=>`<tr class="${g.anulado?'anul':''}"><td data-l="Hora">${new Date(g.ts).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})}</td><td data-l="Gasto"><b>${esc(g.desc)}</b><br><small class="note">${esc(g.cat)} · ${esc(g.por)}${g.equipo&&g.equipo!==cajaEq?' · '+esc(g.equipo):''}</small></td><td data-l="Pago">${esc(g.pago)}</td><td class="r" data-l="Monto">${L(g.monto)}</td><td class="acts">${!g.anulado?`<button class="dng adm" data-g="${esc(g.id)}">Anular</button>`:''}</td></tr>`).join(''):'<tr><td colspan="5" class="empty">Sin gastos registrados hoy.</td></tr>';
+ if(cargarArq&&ARQ&&document.activeElement?.closest?.('#arq')==null){$('#aqFondo').value=ARQ.fondo||'';DENOM.forEach(d=>{const el=$('#aq_'+String(d).replace('.','_'));if(el)el.value=(ARQ.conteo||{})[String(d)]||''});$('#aqNota').value=ARQ.nota||''}
+ const c=cuentaCaja(),k=contado(),dif=+(k-c.esperado).toFixed(2);
+ $('#aqRes').innerHTML=`<div class="tot"><span>Fondo inicial</span><span>${L(c.fondo)}</span></div><div class="tot"><span>+ Ventas en efectivo</span><span>${L(c.ef)}</span></div><div class="tot"><span>+ Abonos en efectivo</span><span>${L(c.abEf)}</span></div><div class="tot"><span>− Gastos en efectivo</span><span>${L(c.gEf)}</span></div><div class="tot" style="font-weight:700;border-top:1px solid var(--line);padding-top:6px"><span>Efectivo que debe haber</span><span>${L(c.esperado)}</span></div><div class="tot" style="font-weight:700"><span>Efectivo contado</span><span>${L(k)}</span></div><div class="tot big" style="color:${Math.abs(dif)<0.01?'var(--ok)':dif<0?'var(--warn)':'var(--acc)'};border-color:currentColor"><span>${Math.abs(dif)<0.01?'Cuadra':dif<0?'Faltante':'Sobrante'}</span><span>${L(Math.abs(dif))}</span></div>
+ <p class="note" style="margin-top:10px">Para comparar con el datáfono y el banco: tarjeta ${L(c.tj)} · transferencias ${L(c.tr)}${c.abOtros?' · abonos no en efectivo '+L(c.abOtros):''} · al crédito ${L(c.cr)} · ${c.n} factura(s).</p>
+ ${ARQ?`<p class="note">Arqueo guardado por <b>${esc(ARQ.por)}</b> a las ${new Date(ARQ.ts).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})}${ARQ.diferencia!=null?' · diferencia '+L(ARQ.diferencia):''}.</p>`:''}`;
+ $('#cjKpi').innerHTML=`<div class="kpi main"><span>Gastos de hoy</span><b>${L(GD.filter(g=>!g.anulado).reduce((s,g)=>s+g.monto,0))}</b></div><div class="kpi"><span>Ventas en efectivo</span><b>${L(c.ef)}</b></div><div class="kpi"><span>Efectivo esperado en caja</span><b>${L(c.esperado)}</b></div>`;
+}
+$('#fGasto').onsubmit=async e=>{e.preventDefault();const f=e.target,d=Object.fromEntries(new FormData(f));const m=+(+d.monto).toFixed(2);if(!(m>0)){toast('Escribe el monto');return}
+ const now=new Date();try{await db.collection('gastos').doc().set({desc:d.desc.trim(),cat:d.cat,monto:m,pago:d.pago,fecha:now.toISOString(),ts:now.getTime(),dia:dia(now),por:S?.nombre||'',porId:S?.id||'',equipo:EST.equipo||''});f.reset();toast('Gasto registrado')}catch(er){toast(er.message)}};
+$('#cjG').onclick=async e=>{const b=e.target.closest('button[data-g]');if(!b)return;if(b.dataset.c!=='1'){b.dataset.c='1';b.textContent='¿Anular?';return}try{await db.doc('gastos/'+b.dataset.g).update({anulado:true,anuladoPor:S?.nombre||''});toast('Gasto anulado')}catch(er){toast(er.message)}};
+$('#arq').oninput=()=>renderCaja();
+$('#aqGuardar').onclick=async()=>{const c=cuentaCaja(),k=+contado().toFixed(2);const conteo={};DENOM.forEach(d=>{const v=+($('#aq_'+String(d).replace('.','_')).value||0);if(v)conteo[String(d)]=v});
+ try{await db.doc('arqueos/'+cajaDia+'_'+eqKey(cajaEq)).set({dia:cajaDia,equipo:cajaEq,fondo:c.fondo,conteo,contado:k,esperado:+c.esperado.toFixed(2),diferencia:+(k-c.esperado).toFixed(2),ventasEf:c.ef,abonosEf:c.abEf,gastosEf:c.gEf,tarjeta:c.tj,transferencia:c.tr,credito:c.cr,nota:$('#aqNota').value.trim(),por:S?.nombre||'',porId:S?.id||'',ts:Date.now()});toast('Arqueo guardado')}catch(er){toast(er.message)}};
+$('#aqPrint').onclick=()=>{const c=cuentaCaja(),k=contado(),dif=k-c.esperado,r=(a,b)=>`<div class="rw"><span>${a}</span><span>${b}</span></div>`;
+ imprimir(`<div class="rcpt"><div class="c"><b>${esc(AJ.nombre||'Vikingos Licor Store')}</b><br>ARQUEO DE CAJA</div><hr><div>Fecha: ${new Date().toLocaleString('es-HN')}</div><div>Caja: ${esc(cajaEq)}</div><div>Hecho por: ${esc(S?.nombre||'')}</div><hr>${r('Fondo inicial',L(c.fondo))}${r('+ Ventas efectivo',L(c.ef))}${r('+ Abonos efectivo',L(c.abEf))}${r('- Gastos efectivo',L(c.gEf))}${r('<b>Debe haber</b>','<b>'+L(c.esperado)+'</b>')}<hr>${DENOM.map(d=>{const n=+($('#aq_'+String(d).replace('.','_')).value||0);return n?r(n+' x L '+d,L(n*d)):''}).join('')}${r('<b>Contado</b>','<b>'+L(k)+'</b>')}<hr><div class="rw" style="font-weight:700;font-size:16px"><span>${Math.abs(dif)<0.01?'CUADRA':dif<0?'FALTANTE':'SOBRANTE'}</span><span>${L(Math.abs(dif))}</span></div><hr>${r('Tarjeta',L(c.tj))}${r('Transferencias',L(c.tr))}${r('Crédito',L(c.cr))}${$('#aqNota').value?'<div>Nota: '+esc($('#aqNota').value)+'</div>':''}<br><br><div class="c">_______________________<br>Firma</div></div>`,'Arqueo')};
+
+/* ---------- REPORTE DIARIO ---------- */
+let RV=[],RG=[],RA=[],unR=[];
+function subRep(){if(!db||!admin)return;const d=$('#rpDia').value||dia(Date.now());$('#rpDia').value=d;unR.forEach(u=>u());unR=[
+ db.collection('ventas').where('dia','==',d).onSnapshot(s=>{RV=s.docs.map(x=>({id:x.id,...x.data()}));renderRep()},()=>{}),
+ db.collection('gastos').where('dia','==',d).onSnapshot(s=>{RG=s.docs.map(x=>({id:x.id,...x.data()}));renderRep()},()=>{}),
+ db.collection('arqueos').where('dia','==',d).onSnapshot(s=>{RA=s.docs.map(x=>({id:x.id,...x.data()}));renderRep()},()=>{})]}
+function datosRep(){
+ const d=$('#rpDia').value,eq=$('#rpEq').value;
+ const vsAll=RV.filter(v=>!eq||v.equipo===eq),vs=vsAll.filter(v=>!v.anulada),an=vsAll.filter(v=>v.anulada);
+ const cmap=Object.fromEntries(P.map(p=>[p.id,+p.costo||0]));
+ const venta=vs.reduce((s,v)=>s+v.total,0),costo=vs.reduce((s,v)=>s+v.items.reduce((a,i)=>a+i.cant*(i.costo!=null?+i.costo:(cmap[i.id]||0)),0),0);
+ const isv=vs.reduce((s,v)=>s+(v.i15||0)+(v.i18||0),0);
+ const pagos={};vs.forEach(v=>pagos[v.pago]=(pagos[v.pago]||0)+v.total);
+ const ab=abonosDe(d,eq||null),abP={};ab.forEach(a=>abP[a.pago]=(abP[a.pago]||0)+a.monto);
+ const gs=RG.filter(g=>!g.anulado&&(!eq||g.equipo===eq)),gTot=gs.reduce((s,g)=>s+g.monto,0),gCat={};gs.forEach(g=>gCat[g.cat]=(gCat[g.cat]||0)+g.monto);
+ const prod={};vs.forEach(v=>v.items.forEach(i=>{const k=i.id||i.nom;prod[k]=prod[k]||{nom:i.nom,c:0,m:0,g:0};prod[k].c+=i.cant;prod[k].m+=i.cant*i.precio;prod[k].g+=i.cant*(i.precio-(i.costo!=null?+i.costo:(cmap[i.id]||0)))}));
+ const vend={};vs.forEach(v=>{const k=v.vendNom||'—';vend[k]=vend[k]||{n:0,m:0};vend[k].n++;vend[k].m+=v.total});
+ const arq=RA.filter(a=>!eq||a.equipo===eq);
+ return{d,eq,venta,costo,gan:venta-costo,isv,gTot,util:venta-costo-gTot,n:vs.length,an,pagos,ab,abP,abTot:ab.reduce((s,a)=>s+a.monto,0),gs,gCat,prod:Object.values(prod).sort((a,b)=>b.m-a.m),vend,arq};
+}
+function renderRep(){
+ if(!$('#rpKpi'))return;
+ const eqs=[...new Set(RV.map(v=>v.equipo).concat(RG.map(g=>g.equipo)).filter(Boolean))],cur=$('#rpEq').value;
+ $('#rpEq').innerHTML='<option value="">Todas las cajas</option>'+eqs.map(e=>`<option ${e===cur?'selected':''}>${esc(e)}</option>`).join('');
+ const R=datosRep(),t=(rows,cols)=>rows.length?`<table class="stack" style="margin-bottom:6px"><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?'r':''}" data-l="${esc(cols[i]||'')}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`:'<p class="note">Nada.</p>';
+ $('#rpKpi').innerHTML=`<div class="kpi main"><span>Ventas del día</span><b>${L(R.venta)}</b></div><div class="kpi"><span>Costo de lo vendido</span><b>${L(R.costo)}</b></div><div class="kpi"><span>Ganancia bruta</span><b>${L(R.gan)}</b></div><div class="kpi"><span>Gastos</span><b>${L(R.gTot)}</b></div><div class="kpi"><span>Utilidad del día</span><b style="color:${R.util<0?'var(--warn)':'var(--ok)'}">${L(R.util)}</b></div><div class="kpi"><span>Facturas · promedio</span><b>${R.n} · ${L(R.n?R.venta/R.n:0)}</b></div>`;
+ $('#rpBody').innerHTML=`<div class="cols" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+ <div class="card"><h3 class="rh">Ventas por forma de pago</h3>${t(Object.entries(R.pagos).map(([k,v])=>[esc(k),L(v)]),['Pago','Total'])}<p class="note">ISV cobrado: ${L(R.isv)}</p>
+ <h3 class="rh">Abonos a créditos recibidos</h3>${t(Object.entries(R.abP).map(([k,v])=>[esc(k),L(v)]),['Pago','Total'])}${R.abTot?`<p class="note">Total abonos: ${L(R.abTot)}</p>`:''}</div>
+ <div class="card"><h3 class="rh">Gastos del día</h3>${t(R.gs.map(g=>[esc(g.desc)+'<br><small class="note">'+esc(g.cat)+' · '+esc(g.pago)+'</small>',L(g.monto)]),['Gasto','Monto'])}${R.gTot?`<p class="note">Por tipo: ${Object.entries(R.gCat).map(([k,v])=>esc(k)+' '+L(v)).join(' · ')}</p>`:''}</div>
+ <div class="card"><h3 class="rh">Arqueo de caja</h3>${R.arq.length?R.arq.map(a=>`<div class="tot"><span>${esc(a.equipo)} · por ${esc(a.por)}</span><b style="color:${Math.abs(a.diferencia)<0.01?'var(--ok)':a.diferencia<0?'var(--warn)':'var(--acc)'}">${Math.abs(a.diferencia)<0.01?'Cuadra':(a.diferencia<0?'Faltan ':'Sobran ')+L(Math.abs(a.diferencia))}</b></div><p class="note" style="margin:0 0 8px">Debía haber ${L(a.esperado)} · contado ${L(a.contado)}${a.nota?' · '+esc(a.nota):''}</p>`).join(''):'<p class="note">No se guardó arqueo este día.</p>'}
+ <h3 class="rh">Por vendedor</h3>${t(Object.entries(R.vend).map(([k,v])=>[esc(k)+' · '+v.n+' fact.',L(v.m)]),['Vendedor','Total'])}
+ ${R.an.length?`<h3 class="rh">Facturas anuladas</h3>${t(R.an.map(v=>[esc(v.factura),L(v.total)]),['Factura','Total'])}`:''}</div>
+ </div>
+ <div class="card" style="margin-top:16px"><h3 class="rh">Productos vendidos</h3><div class="scroll"><table class="stack"><thead><tr><th>Producto</th><th class="r">Cantidad</th><th class="r">Vendido</th><th class="r">Ganancia</th></tr></thead><tbody>${R.prod.length?R.prod.map(p=>`<tr><td data-l="Producto">${esc(p.nom)}</td><td class="r" data-l="Cantidad">${p.c}</td><td class="r" data-l="Vendido">${L(p.m)}</td><td class="r" data-l="Ganancia">${L(p.g)}</td></tr>`).join(''):'<tr><td colspan="4" class="empty">Sin ventas este día.</td></tr>'}</tbody></table></div></div>`;
+}
+$('#rpDia').onchange=subRep;$('#rpEq').onchange=renderRep;
+$('#rpPrint').onclick=()=>{const R=datosRep(),r=(a,b)=>`<div class="rw"><span>${a}</span><span>${b}</span></div>`;
+ imprimir(`<div class="rcpt"><div class="c"><b>${esc(AJ.nombre||'Vikingos Licor Store')}</b><br>REPORTE DEL DÍA ${esc(fmtD(R.d))}</div><div class="c">${esc(R.eq||'Todas las cajas')}</div><hr>${r('Facturas',R.n)}${r('<b>Ventas</b>','<b>'+L(R.venta)+'</b>')}${Object.entries(R.pagos).map(([k,v])=>r('&nbsp; '+esc(k),L(v))).join('')}${r('ISV cobrado',L(R.isv))}${r('Abonos recibidos',L(R.abTot))}<hr>${r('Costo vendido',L(R.costo))}${r('Ganancia bruta',L(R.gan))}${r('Gastos',L(R.gTot))}${r('<b>Utilidad</b>','<b>'+L(R.util)+'</b>')}<hr>${R.arq.map(a=>r('Arqueo '+esc(a.equipo),Math.abs(a.diferencia)<0.01?'Cuadra':(a.diferencia<0?'-':'+')+L(Math.abs(a.diferencia)))).join('')}${R.an.length?r('Anuladas',R.an.length):''}<hr>${R.prod.slice(0,15).map(p=>r(p.c+' '+esc(p.nom).slice(0,22),L(p.m))).join('')}<div class="c" style="margin-top:6px">Impreso ${new Date().toLocaleString('es-HN')}</div></div>`,'Reporte')};
+$('#rpPdf').onclick=async()=>{const R=datosRep();try{save('Reporte-'+R.d+(R.eq?'-'+R.eq.replace(/[^\w]+/g,'_'):'')+'.pdf',await reportePDF(R));toast('Reporte guardado en Descargas')}catch(e){toast('No se pudo crear el PDF: '+e.message)}};
+async function reportePDF(R){
+ const pdf=nuevoPDF(),W=pdf.W,H=pdf.H,M=40,WOOD='#2e1c13',BONE='#f4ead9',MUT='#7a6c60';let y=0,logo=null;try{logo=await imgAJpeg(LOGO,360)}catch(e){}
+ const head=()=>{pdf.pagina();pdf.rect(0,0,W,80,WOOD);let tx=M;if(logo){const h=56,w=logo.w*h/logo.h;pdf.imagen(logo.bytes,logo.w,logo.h,M,12,w,h);tx=M+w+14}pdf.texto(AJ.nombre||'Vikingos Licor Store',tx,36,18,'F2',BONE);pdf.texto('Reporte del día '+fmtD(R.d)+' · '+(R.eq||'Todas las cajas'),tx,56,11,'F1',BONE);y=104};
+ const need=h=>{if(y+h>H-50)head()};
+ const sec=t=>{need(40);y+=8;pdf.texto(t,M,y,13,'F2',WOOD);y+=6;pdf.rect(M,y,W-2*M,0.8,'#ddd4c9');y+=14};
+ const fila=(a,b,bold)=>{need(16);pdf.texto(a,M,y,10,bold?'F2':'F1');pdf.texto(b,W-M,y,10,bold?'F2':'F1',null,'r');y+=15};
+ head();
+ sec('Resumen');fila('Facturas',String(R.n));fila('Ventas',L(R.venta),true);fila('Costo de lo vendido',L(R.costo));fila('Ganancia bruta',L(R.gan));fila('Gastos',L(R.gTot));fila('Utilidad del día',L(R.util),true);fila('ISV cobrado',L(R.isv));
+ sec('Ventas por forma de pago');Object.entries(R.pagos).forEach(([k,v])=>fila(k,L(v)));if(!Object.keys(R.pagos).length)fila('Sin ventas','');
+ sec('Abonos a créditos');Object.entries(R.abP).forEach(([k,v])=>fila(k,L(v)));fila('Total abonos',L(R.abTot),true);
+ sec('Gastos');R.gs.forEach(g=>fila(partirTxt(g.desc+' ('+g.cat+', '+g.pago+')','F1',10,W-2*M-90,1)[0],L(g.monto)));fila('Total gastos',L(R.gTot),true);
+ sec('Arqueo de caja');if(R.arq.length)R.arq.forEach(a=>{fila(a.equipo+' (por '+a.por+')',Math.abs(a.diferencia)<0.01?'Cuadra':(a.diferencia<0?'Faltante ':'Sobrante ')+L(Math.abs(a.diferencia)),true);fila('   Debía haber / contado',L(a.esperado)+' / '+L(a.contado))});else fila('No se guardó arqueo','');
+ sec('Por vendedor');Object.entries(R.vend).forEach(([k,v])=>fila(k+' ('+v.n+' facturas)',L(v.m)));
+ if(R.an.length){sec('Facturas anuladas');R.an.forEach(v=>fila(v.factura+' · '+v.cliente,L(v.total)))}
+ sec('Productos vendidos');need(16);pdf.texto('Producto',M,y,9,'F2',MUT);pdf.texto('Cant.',W-M-170,y,9,'F2',MUT,'r');pdf.texto('Vendido',W-M-85,y,9,'F2',MUT,'r');pdf.texto('Ganancia',W-M,y,9,'F2',MUT,'r');y+=14;
+ R.prod.forEach(p=>{need(15);pdf.texto(partirTxt(p.nom,'F1',10,W-2*M-200,1)[0],M,y,10);pdf.texto(String(p.c),W-M-170,y,10,'F1',null,'r');pdf.texto(L(p.m),W-M-85,y,10,'F1',null,'r');pdf.texto(L(p.g),W-M,y,10,'F1',null,'r');y+=15});
+ pdf.pie(n=>({izq:(AJ.nombre||'Vikingos Licor Store')+' · Generado '+new Date().toLocaleString('es-HN'),der:'Página '+n+' de '+pdf.paginas}),MUT,M);
+ return pdf.generar();
+}
+
 /* ---------- ARRANQUE ---------- */
 renderPOS();renderCart();renderInv();renderV();renderCR();
 function iniciarDatos(){
@@ -902,9 +1036,9 @@ function iniciarDatos(){
  conectarEventos();
  db.collection('productos').onSnapshot(s=>{P=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.nom).localeCompare(b.nom));
   cart=cart.filter(it=>P.some(p=>p.id===it.id));renderPOS();renderCart();renderInv();renderV();renderSugBtn()},e=>toast(e.message));
- db.collection('ventas').where('pago','==','Crédito').limit(20000).onSnapshot(s=>{CR=s.docs.map(d=>({id:d.id,...d.data()}));renderCR();renderV()},()=>{});
+ db.collection('ventas').where('pago','==','Crédito').limit(20000).onSnapshot(s=>{CR=s.docs.map(d=>({id:d.id,...d.data()}));renderCR();renderV();renderCaja();renderRep()},()=>{});
  db.doc('ajustes/negocio').onSnapshot(s=>{AJ=s.exists?s.data():{};renderAj()},()=>{});
- subV();if(admin){cargarUsuarios();cargarBk();cargarSug()}
+ subV();subCaja();if(admin){cargarUsuarios();cargarBk();cargarSug();subRep()}
 }
 (async()=>{
  await cargarEstado();
