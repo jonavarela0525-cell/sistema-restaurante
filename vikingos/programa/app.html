@@ -529,7 +529,7 @@ function renderV(){
  const list=inRange(),ok=list.filter(v=>!v.anulada);
  const tot=ok.reduce((a,v)=>a+v.total,0),isv=ok.reduce((a,v)=>a+(v.i15||0)+(v.i18||0),0);
  const costMap=Object.fromEntries(P.map(p=>[p.id,+p.costo||0]));const gan=ok.reduce((a,v)=>a+v.items.reduce((s,i)=>s+i.cant*(i.precio-(costMap[i.id]||0)),0),0);
- const byPay={};ok.forEach(v=>byPay[v.pago]=(byPay[v.pago]||0)+v.total);
+ const byPay={Efectivo:0,Tarjeta:0,Transferencia:0,'Crédito':0};ok.forEach(v=>byPay[v.pago]=(byPay[v.pago]||0)+v.total);
  {const[a,b]=range();const vf=admin?$('#vend').value:(S?.id||'-');let ab=0;CR.filter(v=>!v.anulada).forEach(v=>Object.values(v.abonos||{}).forEach(x=>{const d=dia(x.ts);if(d>=a&&d<=b&&(!vf||x.porId===vf))ab+=+x.monto||0}));if(ab)byPay['Abonos a créditos']=ab}
  $('#vkpi').innerHTML=`<div class="kpi main"><span>Total vendido</span><b>${L(tot)}</b></div><div class="kpi"><span>Facturas</span><b>${ok.length}</b></div><div class="kpi"><span>Ticket promedio</span><b>${L(ok.length?tot/ok.length:0)}</b></div><div class="kpi"><span>ISV cobrado</span><b>${L(isv)}</b></div><div class="kpi adm"><span>Ganancia estimada</span><b>${L(gan)}</b></div>`+Object.entries(byPay).map(([k,x])=>`<div class="kpi"><span>${esc(k)}</span><b>${L(x)}</b></div>`).join('');
  $('#vtb').innerHTML=list.length?list.map(v=>`<tr class="${v.anulada?'anul':''}"><td data-l="Factura"><b>${esc(v.factura)}</b></td><td data-l="Fecha">${new Date(v.fecha).toLocaleString('es-HN',{dateStyle:'short',timeStyle:'short'})}</td><td data-l="Cliente">${esc(v.cliente)}</td><td data-l="Pago">${esc(v.pago)}</td><td data-l="Vendedor">${esc(v.vendNom||names[v.vendedor]||'—')}</td><td class="r" data-l="Total">${L(v.total)}</td><td class="acts"><button class="ghost" data-a="ver" data-id="${esc(v.id)}">Ver</button>${!v.anulada?`<button class="dng adm" data-a="anu" data-id="${esc(v.id)}">Anular</button>`:''}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">No hay ventas en este periodo.</td></tr>';
@@ -981,8 +981,8 @@ function datosRep(){
  const cmap=Object.fromEntries(P.map(p=>[p.id,+p.costo||0]));
  const venta=vs.reduce((s,v)=>s+v.total,0),costo=vs.reduce((s,v)=>s+v.items.reduce((a,i)=>a+i.cant*(i.costo!=null?+i.costo:(cmap[i.id]||0)),0),0);
  const isv=vs.reduce((s,v)=>s+(v.i15||0)+(v.i18||0),0);
- const pagos={};vs.forEach(v=>pagos[v.pago]=(pagos[v.pago]||0)+v.total);
- const ab=abonosDe(d,eq||null),abP={};ab.forEach(a=>abP[a.pago]=(abP[a.pago]||0)+a.monto);
+ const pagos={Efectivo:0,Tarjeta:0,Transferencia:0,'Crédito':0};vs.forEach(v=>pagos[v.pago]=(pagos[v.pago]||0)+v.total);
+ const ab=abonosDe(d,eq||null),abP={Efectivo:0,Tarjeta:0,Transferencia:0};ab.forEach(a=>abP[a.pago]=(abP[a.pago]||0)+a.monto);
  const gs=RG.filter(g=>!g.anulado&&(!eq||g.equipo===eq)),gTot=gs.reduce((s,g)=>s+g.monto,0),gCat={};gs.forEach(g=>gCat[g.cat]=(gCat[g.cat]||0)+g.monto);
  const prod={};vs.forEach(v=>v.items.forEach(i=>{const k=i.id||i.nom;prod[k]=prod[k]||{nom:i.nom,c:0,m:0,g:0};prod[k].c+=i.cant;prod[k].m+=i.cant*i.precio;prod[k].g+=i.cant*(i.precio-(i.costo!=null?+i.costo:(cmap[i.id]||0)))}));
  const vend={};vs.forEach(v=>{const k=v.vendNom||'—';vend[k]=vend[k]||{n:0,m:0};vend[k].n++;vend[k].m+=v.total});

@@ -1,16 +1,16 @@
 {
- "version": "1.4.0",
- "publicado": "2026-11-18T23:54:19",
+ "version": "1.4.1",
+ "publicado": "2026-11-18T23:56:11",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "7f6eee01af16437d8ab6784e43408395877e89d3d58baaacec62c621bda5888b",
+   "sha256": "2fb604ba16af3fc09b7a3045e1bc65502c123931edfedb107c6d85a723e0333f",
    "bytes": 45391
   },
   {
    "nombre": "app.html",
-   "sha256": "7c842f6c78c52d57e4babde412f869ac358c33d8e504facad62c76f68a67a56d",
-   "bytes": 215162
+   "sha256": "b363b38eac0a3234193fdc27b02cac6500e0db21dfc1169c8f77721e2f771cd7",
+   "bytes": 215296
   },
   {
    "nombre": "lanzador.js",
@@ -58,5 +58,5 @@
    "bytes": 44609
   }
  ],
- "cambios": "Pestaña Caja (gastos del día y arqueo) y pestaña Reportes (reporte diario con PDF e impresión)."
+ "cambios": "Los reportes muestran siempre todas las formas de pago."
 }
