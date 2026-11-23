@@ -1,16 +1,16 @@
 {
- "version": "1.5.0",
- "publicado": "2026-11-23T10:50:52",
+ "version": "1.6.0",
+ "publicado": "2026-11-23T11:20:03",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "61d004b685ab05032ab24ef9c8d7ca498832f7d9a3af62e1e50f54e9b066ab1a",
+   "sha256": "4ae4a370b65a76afb67d33fa4d19fccc23aa74116c020a6f175a0f6390f6ecf6",
    "bytes": 46104
   },
   {
    "nombre": "app.html",
-   "sha256": "23a6b103f0cda9381c8f6ff2c542e3807c2cc99755aca723b5d35aec53420342",
-   "bytes": 223080
+   "sha256": "e5db7de5a4bfffc97591a78417211bd5edce04df91ba2bb375fb3851a5e7eeae",
+   "bytes": 226627
   },
   {
    "nombre": "lanzador.js",
@@ -58,5 +58,5 @@
    "bytes": 44609
   }
  ],
- "cambios": "Ventas varias del día: se acumulan y se facturan juntas antes del cierre."
+ "cambios": "Paquetes enlazados a la unidad (ej. cajetilla de 20 cigarros): comparten la existencia en unidades."
 }

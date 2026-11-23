@@ -288,7 +288,15 @@ const TAB=rid();
 let db=null,admin=false;
 let U=[],S=null;
 let P=[],V=[],AJ={},cart=[],cat='Todas',pago='Efectivo',lowOnly=false,names={};
-const stock=p=>Object.values(p.movs||{}).reduce((a,b)=>a+(+b||0),0);
+const stockPropio=p=>p?Object.values(p.movs||{}).reduce((a,b)=>a+(+b||0),0):0;
+// presentaciones: un producto puede ser "paquete de" otro; la existencia se lleva en unidades en el producto base
+const baseDe=p=>p&&p.base&&+p.factor>0?P.find(x=>x.id===p.base&&x.id!==p.id&&!x.base)||null:null;
+const stock=p=>{const b=baseDe(p);return b?Math.floor(stockPropio(b)/+p.factor):stockPropio(p)};
+const destino=(id,c)=>{const p=P.find(x=>x.id===id),b=baseDe(p);return b?{pid:b.id,q:c*+p.factor}:{pid:id,q:c}};
+const destIt=(it,c)=>it.base?{pid:it.base,q:c*(+it.factor||1)}:destino(it.id,c);
+const unidCarrito=pid=>cart.reduce((s,it)=>{const d=destIt(it,it.cant);return d.pid===pid?s+d.q:s},0);
+const cabe=(p,n)=>{const d=destino(p.id,n);return unidCarrito(d.pid)+d.q<=stockPropio(P.find(x=>x.id===d.pid))};
+const paquetesDe=b=>P.filter(x=>x.base===b.id&&+x.factor>0);
 const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),2600)};
 const banner=m=>{const b=$('#banner');b.textContent=m||'';b.style.display=m?'block':'none'};
 const setSync=(s,c)=>{$('#sync').textContent=s;$('#dot').className='dot '+(c||'')};
@@ -325,15 +333,16 @@ function renderCart(){
 }
 function cambio(){const t=totals(cart).t,r=+$('#rec').value;$('#cambio').textContent=pago==='Efectivo'&&r?(r>=t?'Cambio: '+L(r-t):'Faltan '+L(t-r)):''}
 function add(id){const p=P.find(x=>x.id===id);if(!p)return;const s=stock(p),it=cart.find(x=>x.id===id);
- if((it?it.cant:0)+1>s){toast('No hay más existencia de '+p.nom);return}
- it?it.cant++:cart.push({id:p.id,cod:p.cod||'',nom:p.nom,precio:precioDe(p,nivel),nivel:nivelDe(p,nivel),normal:+p.precio,isv:+p.isv||0,costo:+p.costo||0,cant:1});renderCart()}
+ if(!cabe(p,1)){toast('No hay más existencia de '+p.nom);return}
+ const bs=baseDe(p);
+ it?it.cant++:cart.push({id:p.id,cod:p.cod||'',nom:p.nom,precio:precioDe(p,nivel),nivel:nivelDe(p,nivel),normal:+p.precio,isv:+p.isv||0,costo:+p.costo||0,base:bs?bs.id:'',factor:bs?+p.factor:1,cant:1});renderCart()}
 $('#grid').onclick=e=>{const b=e.target.closest('.prod');if(b)add(b.dataset.id)};
 $('#cats').onclick=e=>{const b=e.target.closest('button');if(b){cat=b.dataset.c;renderPOS()}};
 $('#q').oninput=renderPOS;
 $('#q').onkeydown=e=>{if(e.key!=='Enter')return;const v=e.target.value.trim();const p=P.find(x=>x.cod&&x.cod===v);if(p){add(p.id);e.target.value='';renderPOS()}else{const vis=$$('#grid .prod:not([disabled])');if(vis.length===1){add(vis[0].dataset.id);e.target.value='';renderPOS()}}};
 $('#lines').onchange=e=>{const s2=e.target.closest('select[data-i]');if(!s2)return;const it=cart[+s2.dataset.i],p=P.find(x=>x.id===it.id);if(!p)return;it.nivel=nivelDe(p,s2.value);it.precio=precioDe(p,s2.value);renderCart()};
 $('#lines').onclick=e=>{const b=e.target.closest('button[data-d]');if(!b)return;const it=cart[+b.dataset.i],d=+b.dataset.d;
- if(d>0){const p=P.find(x=>x.id===it.id);if(p&&it.cant+1>stock(p)){toast('No hay más existencia');return}}
+ if(d>0){const p=P.find(x=>x.id===it.id);if(p&&!cabe(p,1)){toast('No hay más existencia');return}}
  it.cant+=d;if(it.cant<=0)cart.splice(+b.dataset.i,1);renderCart()};
 $('#pagos').onclick=e=>{const b=e.target.closest('button');if(!b)return;pago=b.dataset.p;$$('#pagos button').forEach(x=>x.classList.toggle('on',x===b));$('#efec').style.display=pago==='Efectivo'?'':'none';$('#cred').style.display=pago==='Crédito'?'':'none';if(pago==='Crédito'&&!$('#cven').value){const d=new Date();d.setDate(d.getDate()+30);$('#cven').value=dia(d)}cambio()};
 $('#cli').oninput=()=>{const ps=pendCli($('#cli').value);$('#csaldo').textContent=ps.length?'Este cliente ya debe '+L(ps.reduce((a,v)=>a+saldo(v),0))+' en '+ps.length+' factura(s).':'';const c=CR.find(v=>v.cliente.toLowerCase()===$('#cli').value.trim().toLowerCase());if(c){if(!$('#rtn').value)$('#rtn').value=c.rtn||'';if(!$('#ctel').value)$('#ctel').value=c.tel||''}};
@@ -349,13 +358,14 @@ $('#cobrar').onclick=async()=>{
  const T=totals(cart),rec=+$('#rec').value;
  if(pago==='Efectivo'&&rec&&rec<T.t){toast('El efectivo recibido no alcanza');return}
  const cliN=$('#cli').value.trim();if(pago==='Crédito'&&(!cliN||/^consumidor final$/i.test(cliN))){toast('Escribe el nombre del cliente para vender al crédito');$('#cli').focus();return}
- for(const it of cart){const p=P.find(x=>x.id===it.id);if(!p||stock(p)<it.cant){toast('Existencia insuficiente: '+it.nom);return}}
+ {const need={};for(const it of cart){if(!P.find(x=>x.id===it.id)){toast('Ya no existe: '+it.nom);return}const d=destIt(it,it.cant);need[d.pid]=(need[d.pid]||0)+d.q}
+  for(const [pid,q] of Object.entries(need)){const b=P.find(x=>x.id===pid);if(!b||stockPropio(b)<q){toast('Existencia insuficiente: '+(b?b.nom:'producto'));return}}}
  const btn=$('#cobrar');btn.disabled=true;btn.textContent='Guardando…';
  try{
   const nf=await api('siguiente',{});const now=new Date();const vref=db.collection('ventas').doc();
   const v={num:nf.num,factura:nf.factura,equipo:EST.equipo||'',fecha:now.toISOString(),ts:now.getTime(),dia:dia(now),cliente:$('#cli').value.trim()||'Consumidor final',rtn:$('#rtn').value.trim(),pago,recibido:pago==='Efectivo'?(rec||T.t):pago==='Crédito'?0:T.t,tel:pago==='Crédito'?$('#ctel').value.trim():'',vence:pago==='Crédito'?($('#cven').value||''):'',abonos:{},items:cart.map(x=>({...x})),total:+T.t.toFixed(2),b15:+T.b15.toFixed(2),i15:+T.i15.toFixed(2),b18:+T.b18.toFixed(2),i18:+T.i18.toFixed(2),ex:+T.ex.toFixed(2),vendedor:S?.id||'',vendNom:S?.nombre||'',anulada:false};
   await vref.set(v);
-  for(const [i,it] of cart.entries())await db.doc('productos/'+it.id).update({movs:{['v'+vref.id+'_'+i]:-it.cant}});
+  for(const [i,it] of cart.entries()){const d=destIt(it,it.cant);await db.doc('productos/'+d.pid).update({movs:{['v'+vref.id+'_'+i]:-d.q}})}
   cart=[];nivel='n';$$('#niveles button').forEach(x=>x.classList.toggle('on',x.dataset.n==='n'));$('#rec').value='';$('#cli').value='';$('#rtn').value='';$('#ctel').value='';$('#cven').value='';renderCart();renderPOS();
   showRcpt({...v,id:vref.id});if(autoPrint.get())imprimir(rcptHTML(v),v.factura);
  }catch(e){toast(e.code==='invalid_argument'?'No tienes permiso para registrar ventas.':(e.message||'Error al guardar la venta'))}
@@ -390,9 +400,9 @@ function renderInv(){
  const q=$('#iq').value.trim().toLowerCase(),c=$('#icat').value||'Todas';
  const cs=cats();$('#icat').innerHTML=cs.map(x=>`<option ${x===c?'selected':''}>${esc(x)}</option>`).join('');
  const list=P.filter(p=>(c==='Todas'||(p.cat||'Otros')===c)&&(!q||(p.nom+' '+p.cod).toLowerCase().includes(q))&&(!lowOnly||stock(p)<=(+p.min||0)));
- const unid=P.reduce((a,p)=>a+Math.max(0,stock(p)),0),val=P.reduce((a,p)=>a+Math.max(0,stock(p))*(+p.precio||0),0),cos=P.reduce((a,p)=>a+Math.max(0,stock(p))*(+p.costo||0),0),low=P.filter(p=>stock(p)<=(+p.min||0)).length;
+ const PB=P.filter(p=>!baseDe(p));const unid=PB.reduce((a,p)=>a+Math.max(0,stock(p)),0),val=PB.reduce((a,p)=>a+Math.max(0,stock(p))*(+p.precio||0),0),cos=PB.reduce((a,p)=>a+Math.max(0,stock(p))*(+p.costo||0),0),low=P.filter(p=>stock(p)<=(+p.min||0)).length;
  $('#ikpi').innerHTML=`<div class="kpi main"><span>Valor a precio de venta</span><b>${L(val)}</b></div><div class="kpi adm"><span>Valor a costo</span><b>${L(cos)}</b></div><div class="kpi"><span>Unidades en bodega</span><b>${unid}</b></div><div class="kpi"><span>Productos con stock bajo</span><b style="color:${low?'var(--warn)':'inherit'}">${low}</b></div>`;
- $('#itb').innerHTML=list.length?list.map(p=>{const s=stock(p);return`<tr class="${s<=(+p.min||0)?'low':''}"><td data-l="Código">${esc(p.cod)}</td><td data-l="Producto">${+p.fotoV?`<img class="mini" src="${esc(fotoURL(p))}" alt="" loading="lazy">`:''}<b>${esc(p.nom)}</b></td><td data-l="Categoría">${esc(p.cat)}</td><td class="r" data-l="Precio normal">${L(p.precio)}</td><td class="r" data-l="Con descuento">${+p.precioDesc>0?L(p.precioDesc):'—'}</td><td class="r" data-l="Por mayor">${+p.precioMay>0?L(p.precioMay):'—'}</td><td class="r adm" data-l="Precio de compra">${L(p.costo)}</td><td class="r" data-l="Existencia"><b>${s}</b></td><td class="r" data-l="Mínimo">${+p.min||0}</td><td class="acts"><button class="ghost" data-a="ent" data-id="${esc(p.id)}">Entrada</button><button class="ghost adm" data-a="aj" data-id="${esc(p.id)}">Ajustar</button><button class="ghost adm" data-a="ed" data-id="${esc(p.id)}">Editar</button></td></tr>`}).join(''):`<tr><td colspan="10" class="empty">${P.length?'Nada coincide con el filtro.':'Sin productos todavía.'}</td></tr>`;
+ $('#itb').innerHTML=list.length?list.map(p=>{const s=stock(p);return`<tr class="${s<=(+p.min||0)?'low':''}"><td data-l="Código">${esc(p.cod)}</td><td data-l="Producto">${+p.fotoV?`<img class="mini" src="${esc(fotoURL(p))}" alt="" loading="lazy">`:''}<b>${esc(p.nom)}</b></td><td data-l="Categoría">${esc(p.cat)}</td><td class="r" data-l="Precio normal">${L(p.precio)}</td><td class="r" data-l="Con descuento">${+p.precioDesc>0?L(p.precioDesc):'—'}</td><td class="r" data-l="Por mayor">${+p.precioMay>0?L(p.precioMay):'—'}</td><td class="r adm" data-l="Precio de compra">${L(p.costo)}</td><td class="r" data-l="Existencia"><b>${s}</b>${baseDe(p)?`<br><small class="note">paquete de ${+p.factor} · ${stockPropio(baseDe(p))} unid.</small>`:''}</td><td class="r" data-l="Mínimo">${+p.min||0}</td><td class="acts"><button class="ghost" data-a="ent" data-id="${esc(p.id)}">Entrada</button><button class="ghost adm" data-a="aj" data-id="${esc(p.id)}">Ajustar</button><button class="ghost adm" data-a="ed" data-id="${esc(p.id)}">Editar</button></td></tr>`}).join(''):`<tr><td colspan="10" class="empty">${P.length?'Nada coincide con el filtro.':'Sin productos todavía.'}</td></tr>`;
 }
 $('#iq').oninput=renderInv;$('#icat').onchange=renderInv;
 $('#ilow').onclick=e=>{lowOnly=!lowOnly;e.target.classList.toggle('pri',lowOnly);e.target.classList.toggle('ghost',!lowOnly);renderInv()};
@@ -415,6 +425,9 @@ function prodForm(id){
  <div class="w note" id="fpMg"></div>
  <label>Impuesto<select name="isv"><option value="18" ${+p.isv===18?'selected':''}>ISV 18% (bebidas alcohólicas)</option><option value="15" ${+p.isv===15?'selected':''}>ISV 15%</option><option value="0" ${+p.isv===0?'selected':''}>Exento</option></select></label>
  <label>Stock mínimo<input name="min" type="number" min="0" value="${esc(p.min)}"></label>
+ <div class="w" style="border:1px dashed var(--line);border-radius:12px;padding:10px 12px"><div class="note" style="margin-bottom:6px"><b>¿Es un paquete de otro producto?</b> Ej.: "Marlboro cajetilla 20" es paquete de "Cigarro Marlboro unidad" con 20 unidades. Se venden por separado, pero comparten la misma existencia en unidades.</div>
+ <div style="display:flex;gap:8px;flex-wrap:wrap"><select name="base" style="flex:1 1 220px"><option value="">No, tiene su propia existencia</option>${P.filter(x=>x.id!==id&&!baseDe(x)&&!(x.base&&+x.factor>0)).sort((a,b)=>a.nom.localeCompare(b.nom)).map(x=>`<option value="${esc(x.id)}" ${p.base===x.id?'selected':''}>${esc(x.nom)}</option>`).join('')}</select>
+ <input name="factor" type="number" min="2" step="1" placeholder="Unidades por paquete" value="${+p.factor>0?esc(p.factor):''}" style="flex:0 1 190px"></div></div>
  ${id?'':'<label class="w">Existencia inicial<input name="ini" type="number" min="0" value="0"></label>'}
  </form><div class="row">${id?'<button class="dng" id="fpDel">Eliminar</button>':''}<button class="ghost" id="fpX">Cancelar</button><button class="pri" id="fpOk">Guardar</button></div>`);
  const mg=()=>{const f=$('#fp'),c=+f.costo.value;if(!c){$('#fpMg').textContent='';return}
@@ -425,13 +438,24 @@ function prodForm(id){
  $('#fpTraer').onclick=async()=>{const u=$('#fpUrl').value.trim();if(!/^https?:\/\//i.test(u)){toast('Pega un enlace que empiece con http');return}$('#fpTraer').disabled=true;$('#fpTraer').textContent='Trayendo…';try{nuevaFoto=await fotoDesdeWeb(u);$('#fpImg').innerHTML=`<img src="${nuevaFoto.img}" alt="">`;$('#fpQuitar').style.display=''}catch(er){toast(er.message)}$('#fpTraer').disabled=false;$('#fpTraer').textContent='Traer'};
  $('#fpQuitar').onclick=()=>{nuevaFoto=null;$('#fpImg').textContent='Sin foto';$('#fpQuitar').style.display='none';$('#fpFile').value=''};
  $('#fpX').onclick=()=>$('#dlg').close();
- if(id)$('#fpDel').onclick=async()=>{if($('#fpDel').dataset.c!=='1'){$('#fpDel').dataset.c='1';$('#fpDel').textContent='¿Seguro? Tocar otra vez';return}await db.doc('productos/'+id).delete();if(+p.fotoV)await db.doc('fotos/'+id).delete().catch(()=>{});$('#dlg').close();toast('Producto eliminado')};
+ if(id)$('#fpDel').onclick=async()=>{if(paquetesDe(p).length){toast('Primero quita el enlace de: '+paquetesDe(p).map(x=>x.nom).join(', '));return}if($('#fpDel').dataset.c!=='1'){$('#fpDel').dataset.c='1';$('#fpDel').textContent='¿Seguro? Tocar otra vez';return}await db.doc('productos/'+id).delete();if(+p.fotoV)await db.doc('fotos/'+id).delete().catch(()=>{});$('#dlg').close();toast('Producto eliminado')};
  $('#fpOk').onclick=async()=>{const f=$('#fp');if(!f.reportValidity())return;const d=Object.fromEntries(new FormData(f));
   const body={nom:d.nom.trim(),cod:d.cod.trim(),cat:d.cat.trim()||'Otros',precio:+d.precio||0,precioDesc:+d.precioDesc||0,precioMay:+d.precioMay||0,costo:+d.costo||0,isv:+d.isv,min:+d.min||0};
   if(body.precioDesc&&body.precioDesc>body.precio){toast('El precio con descuento no puede ser mayor que el normal');return}
   if(body.precioMay&&body.precioMay>body.precio){toast('El precio al por mayor no puede ser mayor que el normal');return}
   if(body.cod&&P.some(x=>x.cod===body.cod&&x.id!==id)){toast('Ese código ya existe');return}
-  try{const pid=id||rid();if(id)await db.doc('productos/'+id).update(body);else{const ini=+d.ini||0;await db.doc('productos/'+pid).set({...body,movs:ini?{['i'+rid()]:ini}:{},creado:Date.now()})}
+  body.base=d.base||'';body.factor=d.base?Math.round(+d.factor||0):0;
+  if(body.base&&body.factor<2){toast('Escribe cuántas unidades trae el paquete');return}
+  if(body.base&&id&&paquetesDe(p).length){toast('Este producto ya es la unidad de otros paquetes; no puede ser paquete');return}
+  const yaEnlazado=id&&p.base===body.base&&+p.factor===body.factor;
+  try{const pid=id||rid();
+  if(id){
+   // al enlazar, la existencia propia que tenía el paquete pasa a la unidad
+   const propio=stockPropio(p);if(body.base&&!yaEnlazado&&propio){await db.doc('productos/'+body.base).update({movs:{['l'+rid()]:propio*body.factor}});body.movs={['l'+rid()]:-propio}}
+   if(!body.base&&p.base&&+p.factor>0){const bb=P.find(x=>x.id===p.base);const u=bb?Math.floor(stockPropio(bb)/+p.factor):0;if(u)toast('Desenlazado. Revisa la existencia de '+body.nom+' con Entrada o Ajustar.')}
+   await db.doc('productos/'+id).update(body)}
+  else{const ini=+d.ini||0;if(body.base&&ini){await db.doc('productos/'+body.base).update({movs:{['i'+rid()]:ini*body.factor}})}
+   await db.doc('productos/'+pid).set({...body,movs:ini&&!body.base?{['i'+rid()]:ini}:{},creado:Date.now()})}
   if(nuevaFoto){await db.doc('fotos/'+pid).set(nuevaFoto);await db.doc('productos/'+pid).update({fotoV:Date.now()})}
   else if(nuevaFoto===null&&id&&+p.fotoV){await db.doc('fotos/'+pid).delete();await db.doc('productos/'+pid).update({fotoV:0})}
   $('#dlg').close();toast('Guardado')}catch(e){toast('No se pudo guardar: '+(e.message||'error'))}};
@@ -441,10 +465,10 @@ function entForm(id){
  if(!P.length){toast('Primero crea productos');return}
  dlg(`<h3>Entrada de mercadería</h3><form class="form" id="fe"><label class="w">Producto<select name="id">${pickOpts(id)}</select></label><label>Cantidad recibida<input name="q" type="number" min="1" required></label><label class="adm">Nuevo costo unitario (opcional)<input name="costo" type="number" step="0.01" min="0"></label></form><div class="row"><button class="ghost" id="feX">Cancelar</button><button class="pri" id="feOk">Registrar entrada</button></div>`);
  $('#feX').onclick=()=>$('#dlg').close();
- $('#feOk').onclick=async()=>{const f=$('#fe');if(!f.reportValidity())return;const d=Object.fromEntries(new FormData(f));const up={movs:{['e'+rid()]:+d.q}};if(admin&&d.costo)up.costo=+d.costo;
-  try{await db.doc('productos/'+d.id).update(up);$('#dlg').close();toast('Entrada registrada')}catch{toast('No se pudo registrar')}};
+ $('#feOk').onclick=async()=>{const f=$('#fe');if(!f.reportValidity())return;const d=Object.fromEntries(new FormData(f));const dd=destino(d.id,+d.q);const up={movs:{['e'+rid()]:dd.q}};
+  try{await db.doc('productos/'+dd.pid).update(up);if(admin&&d.costo)await db.doc('productos/'+d.id).update({costo:+d.costo});$('#dlg').close();toast(dd.pid!==d.id?'Entrada registrada: +'+dd.q+' unidades de '+(P.find(x=>x.id===dd.pid)||{}).nom:'Entrada registrada')}catch{toast('No se pudo registrar')}};
 }
-function ajForm(id){const p=P.find(x=>x.id===id);
+function ajForm(id){let p=P.find(x=>x.id===id);const bq=baseDe(p);if(bq){toast(p.nom+' es paquete de '+bq.nom+': se ajusta en unidades');id=bq.id;p=bq}
  dlg(`<h3>Ajustar existencia</h3><p class="note">${esc(p.nom)} — el sistema dice <b>${stock(p)}</b>. Escribe lo que contaste físicamente.</p><form class="form" id="fa"><label class="w">Existencia real<input name="q" type="number" min="0" required value="${stock(p)}"></label></form><div class="row"><button class="ghost" id="faX">Cancelar</button><button class="pri" id="faOk">Ajustar</button></div>`);
  $('#faX').onclick=()=>$('#dlg').close();
  $('#faOk').onclick=async()=>{const f=$('#fa');if(!f.reportValidity())return;const diff=+new FormData(f).get('q')-stock(p);if(!diff){$('#dlg').close();return}
@@ -548,7 +572,7 @@ $('#vtb').onclick=async e=>{const b=e.target.closest('button[data-a]');if(!b)ret
  if(abonado(v)>0){toast('Esta factura tiene abonos registrados; no se puede anular');return}
  if(b.dataset.c!=='1'){b.dataset.c='1';b.textContent='¿Anular? Confirmar';return}
  b.disabled=true;
- try{await db.doc('ventas/'+v.id).update({anulada:true,anuladaTs:Date.now(),anuladaPor:S?.nombre||''});for(const [i,it] of v.items.entries())await db.doc('productos/'+it.id).update({movs:{['x'+v.id+'_'+i]:it.cant}}).catch(()=>{});toast('Factura anulada; existencia devuelta')}catch{toast('No se pudo anular');b.disabled=false}};
+ try{await db.doc('ventas/'+v.id).update({anulada:true,anuladaTs:Date.now(),anuladaPor:S?.nombre||''});for(const [i,it] of v.items.entries()){const d=destIt(it,it.cant);await db.doc('productos/'+d.pid).update({movs:{['x'+v.id+'_'+i]:d.q}}).catch(()=>{})}toast('Factura anulada; existencia devuelta')}catch{toast('No se pudo anular');b.disabled=false}};
 $('#csv').onclick=()=>{const rows=[['Factura','Fecha','Cliente','RTN','Pago','Gravado15','ISV15','Gravado18','ISV18','Exento','Total','Saldo crédito','Estado']];
  inRange().forEach(v=>rows.push([v.factura,new Date(v.fecha).toLocaleString('es-HN'),v.cliente,v.rtn,v.pago,v.b15,v.i15,v.b18,v.i18,v.ex,v.total,v.pago==='Crédito'?saldo(v):'',v.anulada?'Anulada':'Válida']));
  const[a,b]=range();save(`ventas_${a}_a_${b}.csv`,'﻿'+rows.map(r=>r.map(c=>`"${String(c??'').replace(/"/g,'""')}"`).join(',')).join('\n'))};
@@ -1062,19 +1086,19 @@ function renderVarias(){
 $('#ticket').addEventListener('click',async e=>{const b=e.target.closest('#varPanel button[data-q]');if(!b)return;const[docId,k]=b.dataset.q.split('|');
  const d=AB.find(x=>x.id===docId),it=d&&d.items[k];if(!it)return;
  if(b.dataset.c!=='1'){b.dataset.c='1';b.textContent='¿Quitar '+it.cant+'?';return}
- try{await db.doc('abiertas/'+docId).merge({items:{[k]:{anulado:true,anPor:S?.nombre||''}}});await db.doc('productos/'+it.id).update({movs:{['w'+k+'r']:it.cant}});toast('Quitado: '+it.nom)}catch(er){toast(er.message)}});
+ try{await db.doc('abiertas/'+docId).merge({items:{[k]:{anulado:true,anPor:S?.nombre||''}}});{const d=destIt(it,it.cant);await db.doc('productos/'+d.pid).update({movs:{['w'+k+'r']:d.q}})}toast('Quitado: '+it.nom)}catch(er){toast(er.message)}});
 async function agregarVarias(){
  const hoy=dia(Date.now()),eq=varEq();let d=varPend().find(x=>x.dia===hoy);
  const id=d?d.id:'v'+hoy+'_'+eqKey(eq)+'_'+rid();
  const items={},ts=Date.now();
- cart.forEach((it,i)=>{items[rid()+i]={id:it.id,cod:it.cod,nom:it.nom,precio:it.precio,nivel:it.nivel,normal:it.normal,isv:it.isv,costo:it.costo,cant:it.cant,ts,por:S?.nombre||''}});
+ cart.forEach((it,i)=>{items[rid()+i]={id:it.id,cod:it.cod,nom:it.nom,precio:it.precio,nivel:it.nivel,normal:it.normal,isv:it.isv,costo:it.costo,base:it.base||'',factor:it.factor||1,cant:it.cant,ts,por:S?.nombre||''}});
  await db.doc('abiertas/'+id).merge({dia:hoy,equipo:eq,facturada:false,creado:d?d.creado:ts,items});
- for(const [k,it] of Object.entries(items))await db.doc('productos/'+it.id).update({movs:{['w'+k]:-it.cant}});
+ for(const [k,it] of Object.entries(items)){const d=destIt(it,it.cant);await db.doc('productos/'+d.pid).update({movs:{['w'+k]:-d.q}})}
  const tot=cart.reduce((s,x)=>s+x.precio*x.cant,0);cart=[];renderCart();renderPOS();toast('Agregado a ventas varias: '+L(tot));
 }
 function facturarVarias(docs){
  const it=varItems(docs);if(!it.length){toast('No hay nada que facturar');return}
- const gr=varAgrupar(it).map(x=>({id:x.id,cod:x.cod||'',nom:x.nom,precio:x.precio,nivel:x.nivel||'n',normal:x.normal||x.precio,isv:+x.isv||0,costo:x.costo,cant:x.cant}));
+ const gr=varAgrupar(it).map(x=>({id:x.id,cod:x.cod||'',nom:x.nom,precio:x.precio,nivel:x.nivel||'n',normal:x.normal||x.precio,isv:+x.isv||0,costo:x.costo,base:x.base||'',factor:x.factor||1,cant:x.cant}));
  const T=totals(gr);let pg='Efectivo';
  dlg(`<h3>Facturar ventas varias</h3><p class="note">${gr.length} producto(s), ${gr.reduce((s,x)=>s+x.cant,0)} unidad(es)${docs.some(d=>d.dia!==dia(Date.now()))?' · incluye días anteriores':''}. Se hace una sola factura a Consumidor final.</p>
  <div style="max-height:40vh;overflow:auto">${gr.map(x=>`<div class="tot"><span>${x.cant} × ${esc(x.nom)}</span><span>${L(x.precio*x.cant)}</span></div>`).join('')}</div>
