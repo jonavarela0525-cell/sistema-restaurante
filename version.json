@@ -1,21 +1,21 @@
 {
- "version": "2.4.1",
- "publicado": "2026-11-22T22:04:50",
+ "version": "2.5.0",
+ "publicado": "2026-11-22T22:09:04",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "4e6de27552c56a3622d304a3fb82c4621e5f9ff58d2e4ce93b6893fdb0da09bf",
-   "bytes": 58894
+   "sha256": "445effb242eabfcf7e2050775b3ed257657dce6c31655e1c58aa0318d9ccd549",
+   "bytes": 59021
   },
   {
    "nombre": "app.html",
-   "sha256": "658421e16ab8def42a60d3ba3f959402edb8f28e28f416622d8b059a93f1b4f3",
-   "bytes": 120297
+   "sha256": "e6c6c24d3f2e8797cf98ed159c7de2814dec6b486a2b7a2d2c5967c7753c698d",
+   "bytes": 145506
   },
   {
    "nombre": "impresion.js",
-   "sha256": "7b041b20e1fd52a15f98ed9834f6245f9482fe3c15e3b8d3a63f70e929f345f5",
-   "bytes": 13196
+   "sha256": "3c7f7c1189c6709c9da15f13f7982582e59c5ea6253b0c9cdb2edc7ac4d6079a",
+   "bytes": 13833
   },
   {
    "nombre": "imprimir.ps1",

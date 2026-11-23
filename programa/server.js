@@ -16,7 +16,7 @@ process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 const IMP = require('./impresion.js');
 
-const VERSION = '2.4.1';
+const VERSION = '2.5.0';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante'; // usuario/repositorio en GitHub
 const BASE = __dirname;
 const DATA_DIR = path.join(BASE, 'datos');
@@ -214,7 +214,7 @@ function checkWrite(u, op, p, data, existe) {
       if (op === 'set' && !existe) return;
       if (op === 'update' && existe && soloClaves(data, ['abonos']) && isObj(data.abonos) && Object.values(data.abonos).every(v => Number(v) > 0)) return;
       NO(); break;
-    case 'abonos': case 'impresiones': if (op === 'set' && !existe) return; NO(); break;
+    case 'abonos': case 'impresiones': case 'gastos': if (op === 'set' && !existe) return; NO(); break;
     default: NO();
   }
 }
@@ -778,6 +778,7 @@ function bytesTrabajo(job) {
   if (job.tipo === 'comanda') return IMP.comanda(job.comanda || {}, o);
   if (job.tipo === 'recibo') return IMP.texto(String(job.texto || job.html || ''), { ...o, logo: logoParaImprimir() });
   if (job.tipo === 'prueba') return IMP.prueba({ ...o, logo: logoParaImprimir() }, neg.nombre);
+  if (job.tipo === 'reporte') return IMP.reporte(Array.isArray(job.lineas) ? job.lineas.slice(0, 600) : [], o);
   throw new Error('Tipo de impresión desconocido');
 }
 // si esta computadora cobra y no tiene impresora directa elegida, busca sola una térmica

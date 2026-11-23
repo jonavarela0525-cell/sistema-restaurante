@@ -230,4 +230,16 @@ function enviar(nombre, bytes, dirTmp) {
   return tarea;
 }
 
-module.exports = { factura, comanda, texto, prueba, logoRaster, listarImpresoras, enviar, leerPNG };
+function reporte(lineas, o) {
+  const t = new Ticket(o.cols, o.acentos);
+  for (const l of lineas) {
+    if (!l || typeof l !== 'object') continue;
+    if (l.t === 't') t.centro().negrita(1).tam(1, 2).parrafo(String(l.a || '')).tam(1, 1).negrita(0).izq();
+    else if (l.t === 'c') t.centro().parrafo(String(l.a || '')).izq();
+    else if (l.t === 's') t.linea().negrita(1).ln(String(l.a || '')).negrita(0);
+    else if (l.t === 'p') t.parrafo(String(l.a || ''));
+    else if (l.t === 'f') { if (l.n) t.negrita(1); t.dos(String(l.a || ''), String(l.b || '')); if (l.n) t.negrita(0); }
+  }
+  return t.linea().cortar().bytes();
+}
+module.exports = { factura, comanda, texto, prueba, reporte, logoRaster, listarImpresoras, enviar, leerPNG };
