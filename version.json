@@ -1,16 +1,26 @@
 {
- "version": "2.3.0",
- "publicado": "2026-11-22T19:41:41",
+ "version": "2.4.0",
+ "publicado": "2026-11-22T19:54:05",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "f8068665cf7f4a0f02d3f7bd5d64f2a31bb4d9fd7e36972568011abe91875f26",
-   "bytes": 54099
+   "sha256": "b4b2674eddf139d6ec79ea58372d155cfbc19f8eb785a2daf89a3218c9c14205",
+   "bytes": 57510
   },
   {
    "nombre": "app.html",
-   "sha256": "02bc3a3339227122138abd2a96ac55f37c3651b68864a4bd0f2fabc9e43f27d0",
-   "bytes": 117254
+   "sha256": "658421e16ab8def42a60d3ba3f959402edb8f28e28f416622d8b059a93f1b4f3",
+   "bytes": 120297
+  },
+  {
+   "nombre": "impresion.js",
+   "sha256": "7b041b20e1fd52a15f98ed9834f6245f9482fe3c15e3b8d3a63f70e929f345f5",
+   "bytes": 13196
+  },
+  {
+   "nombre": "imprimir.ps1",
+   "sha256": "42475ac4600adc1a9fd3913111d18bb2b472347c5fb53fdfd53fcbd9c122c741",
+   "bytes": 3238
   },
   {
    "nombre": "lanzador.js",

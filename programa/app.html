@@ -162,7 +162,7 @@ function conectarEventos(){
     es.onopen=()=>{marcarSinServidor(false);listeners.forEach(L=>L.run());api('estado').then(e=>{if(S.info.version&&e.version&&e.version!==S.info.version){toast('Sistema actualizado a la versión '+e.version+'. Recargando…');setTimeout(()=>location.reload(),1800)}}).catch(()=>{})};
     es.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(_){return}const cols=m.cols||[];
       if(cols.includes('__reset')){setTimeout(()=>location.reload(),1500);return}
-      if(cols.includes('__estado')){api('estado').then(x=>{S.info.sync=x.sync;S.info.factura=x.factura;S.info.equipo=x.equipo;renderStatus();if(S.tab==='aj')pintarSync()}).catch(()=>{})}listeners.forEach(L=>{if(cols.includes(L.col)){clearTimeout(L.t);L.t=setTimeout(L.run,60)}})};
+      if(cols.includes('__estado')){api('estado').then(x=>{S.info.sync=x.sync;S.info.factura=x.factura;S.info.equipo=x.equipo;S.info.impresoraDirecta=x.impresoraDirecta;renderStatus();if(S.tab==='aj')pintarSync()}).catch(()=>{})}listeners.forEach(L=>{if(cols.includes(L.col)){clearTimeout(L.t);L.t=setTimeout(L.run,60)}})};
     es.onerror=()=>{marcarSinServidor(true);if(es.readyState===2){setTimeout(abrir,3000)}};
   };abrir();
 }
@@ -421,6 +421,10 @@ function reciboDoc(texto){return docImpresion('<div class="inv">'+(S.negocio.log
 /* ---------- impresión ---------- */
 const esImpresora=()=>{try{const v=localStorage.getItem('rs_impresora');if(v===null)return ['localhost','127.0.0.1'].includes(location.hostname)&&S.info.factura!==false;return v==='1'}catch(e){return false}};
 async function mandarAImprimir(job){
+  if(S.info.impresoraDirecta){
+    try{await api('imprimir',{tipo:job.tipo,facturaId:job.facturaId||null,texto:job.html||null,comanda:job.comanda||null});return}
+    catch(e){if(e.code==='unavailable'){toast(e.message);return}toast('Impresora directa: '+e.message+' — se imprime por el navegador')}
+  }
   if(esImpresora()){imprimirTrabajo(job);return}
   try{await api('op',{op:'set',path:'impresiones/'+nid(),data:{tipo:job.tipo,facturaId:job.facturaId||null,html:job.html||null,estado:'pendiente',creado:new Date().toISOString(),por:S.uid||null}});toast('Enviado a la impresora de caja')}
   catch(e){toast('No se pudo enviar a la impresora: '+e.message)}
@@ -788,9 +792,10 @@ function vAjustes(){
    <label class="check"><input type="checkbox" id="aLF" ${S.negocio.logoFactura!==false?'checked':''} ${S.isAdmin?'':'disabled'}> Imprimir el logo en facturas y recibos</label>
    <p class="mute">Para impresoras térmicas el logo se convierte a blanco y negro.</p></div></div></div>
   <h3>Impresora</h3><div class="card">
+   ${S.info.windows&&S.isAdmin?`<div id="impDirecta">${tarjetaImpDirecta()}</div><hr style="border:0;border-top:1px solid var(--line);margin:12px 0">`:''}
    <label class="check" style="margin-top:0"><input type="checkbox" id="esImp" ${esImpresora()?'checked':''}> <b>Este dispositivo tiene la impresora de tickets</b></label>
    <p class="mute">Márcalo solo en la computadora de caja. Las facturas que se cobren desde los celulares se imprimirán aquí automáticamente, mientras el sistema esté abierto en esta computadora.</p>
-   <button class="btn" data-act="prueba">🖨️ Imprimir prueba</button></div>
+   ${S.info.impresoraDirecta?'':'<button class="btn" data-act="prueba">🖨️ Imprimir prueba</button>'}</div>
   <h3>Celulares y tablets</h3><div class="card">
    <p style="margin-top:0">Conecta el celular al <b>WiFi del restaurante</b> y abre en el navegador:</p>
    ${(S.info.ips||[]).length?S.info.ips.map(ip=>`<div class="inv" style="font-size:16px;margin:6px 0;text-align:center"><b>http://${esc(ip)}:${esc(S.info.puerto)}</b></div>`).join(''):'<p class="mute">Esta computadora no está conectada a ninguna red.</p>'}
@@ -837,6 +842,18 @@ function formSync(desdeInicio){
         else{toast('Computadora enlazada');const x=await api('estado');S.info.sync=x.sync;pintarSync()}
       }catch(err){toast(err.message);bt.disabled=false;bt.textContent='Enlazar'}}});
 }
+function tarjetaImpDirecta(){
+  const a=S.impDir||{};const act=(a.actual)||{};
+  return `<b>Impresión directa (recomendada para térmicas)</b>
+   <p class="mute" style="margin:4px 0 8px">El sistema le manda el ticket directo a la impresora: sale del largo exacto, sin espacios en blanco, sin "localhost" y con corte automático. También imprime las comandas y facturas de los celulares aunque esta ventana esté cerrada.</p>
+   ${!a.cargada?'<button class="btn" data-act="impCargar">Elegir impresora</button>':a.error?`<p style="color:var(--bad)">${esc(a.error)}</p>`:`
+   <label>Impresora de tickets</label><select id="impNom"><option value="">— Ninguna (imprimir por el navegador) —</option>${(a.lista||[]).map(p=>`<option value="${esc(p.nombre)}" ${p.nombre===act.nombre?'selected':''}>${esc(p.nombre)}${p.predeterminada?' (predeterminada)':''}</option>`).join('')}</select>
+   <div class="row wrap"><div class="sp"><label>Letras por renglón</label><select id="impCol">${[[48,'48 (80 mm, normal)'],[42,'42 (80 mm, letra grande)'],[32,'32 (58 mm)'],[56,'56'],[64,'64']].map(([v,t])=>`<option value="${v}" ${Number(act.columnas||48)===v?'selected':''}>${t}</option>`).join('')}</select></div>
+   <div class="sp"><label>Acentos y ñ</label><select id="impAc"><option value="1" ${act.acentos!==false?'selected':''}>Imprimir con acentos</option><option value="0" ${act.acentos===false?'selected':''}>Sin acentos (si salen símbolos raros)</option></select></div></div>
+   <div class="row wrap" style="margin-top:10px"><button class="btn p" data-act="impGuardar">Guardar</button>${act.nombre?'<button class="btn" data-act="prueba">🖨️ Imprimir prueba</button>':''}</div>`}
+   ${act.nombre?`<p class="mute">Ahora imprime directo en: <b>${esc(act.nombre)}</b></p>`:''}`;
+}
+function pintarImpDirecta(){const el=$('#impDirecta');if(el)el.innerHTML=tarjetaImpDirecta()}
 function pintarUpd(r){const el=$('#updInfo');if(!el)return;
   el.innerHTML=`Versión instalada: <b>${esc(r.version)}</b><br>${!r.repo?'Actualizaciones automáticas: no configuradas.':`Estado: <b>${esc(r.estado||'')}</b>${r.ultimaRevision?' · revisado '+new Date(r.ultimaRevision).toLocaleString('es-HN'):''}${r.error?`<br><span style="color:var(--bad)">${esc(r.error)}</span>`:''}<br>El sistema revisa cada hora si hay versión nueva y la instala sola cuando no hay mesas abiertas.`}${r.lanzador?'':'<br><span style="color:var(--warn)">Reinicia la computadora una vez para activar la instalación automática.</span>'}`;
   const b=$('#btnUpdInst');if(b)b.style.display=r.disponible?'':'none'}
@@ -869,7 +886,7 @@ function editarUsuario(id){
 
 /* ---------- eventos ---------- */
 document.addEventListener('click',async e=>{
-  const t=e.target.closest('[data-tab]');if(t){S.dirty=false;S.tab=t.dataset.tab;if(S.tab==='aj'){cargarUsuarios().then(()=>{render();cargarRespaldos()})}if(S.tab==='rep')S.rep.data=null;window.scrollTo(0,0);render();return}
+  const t=e.target.closest('[data-tab]');if(t){S.dirty=false;S.tab=t.dataset.tab;if(S.tab==='aj'){S.impDir=S.impDir||{};cargarUsuarios().then(()=>{render();cargarRespaldos()})}if(S.tab==='rep')S.rep.data=null;window.scrollTo(0,0);render();return}
   const b=e.target.closest('[data-act]');if(!b||b.closest('#sheet'))return;
   const a=b.dataset.act,id=b.dataset.id,k=b.dataset.k;
   switch(a){
@@ -895,6 +912,8 @@ document.addEventListener('click',async e=>{
     case 'syncConfig':formSync(false);break;
     case 'syncAhora':{b.disabled=true;b.textContent='Sincronizando…';try{S.info.sync=await api('sync',{accion:'ahora'})}catch(e){toast(e.message)}pintarSync();break}
     case 'syncQuitar':{if(!twoTap(b,'¿Desenlazar? Dejará de recibir cambios'))break;try{S.info.sync=await api('sync',{accion:'quitar'});toast('Desenlazada')}catch(e){toast(e.message)}pintarSync();break}
+    case 'impCargar':{b.disabled=true;b.textContent='Buscando impresoras…';try{const r=await api('impresoras');S.impDir={cargada:true,...r}}catch(e){S.impDir={cargada:true,error:e.message}}pintarImpDirecta();break}
+    case 'impGuardar':{b.disabled=true;try{const r=await api('impresora',{nombre:$('#impNom').value,columnas:Number($('#impCol').value),acentos:$('#impAc').value==='1'});S.impDir.actual=r.actual;S.info.impresoraDirecta=!!r.actual.nombre;S.dirty=false;toast(r.actual.nombre?'Impresión directa activada':'Impresión directa desactivada');render()}catch(e){toast(e.message);b.disabled=false}break}
     case 'respaldar':{b.disabled=true;try{const r=await api('respaldo',{});toast('Respaldo creado: '+r.nombre);cargarRespaldos()}catch(e){toast(e.message)}b.disabled=false;break}
     case 'descargarDb':{try{const r=await fetch('/api/descargarRespaldo',{headers:{'X-Token':API.token}});if(!r.ok)throw new Error('No se pudo descargar');const nombre=(r.headers.get('Content-Disposition')||'').match(/filename="([^"]+)"/);await localDl.save({filename:nombre?nombre[1]:'restaurante.db',data:await r.blob()})}catch(e){toast(e.message)}break}
     case 'exportar':{try{const r=await fetch('/api/exportar',{headers:{'X-Token':API.token}});if(!r.ok)throw new Error('No se pudo exportar');const t=await r.text();await localDl.save({filename:'respaldo_restaurante_'+hoy()+'.json',data:t})}catch(e){toast(e.message)}break}

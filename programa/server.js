@@ -14,8 +14,9 @@ const os = require('os');
 const crypto = require('crypto');
 process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
+const IMP = require('./impresion.js');
 
-const VERSION = '2.3.0';
+const VERSION = '2.4.0';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante'; // usuario/repositorio en GitHub
 const BASE = __dirname;
 const DATA_DIR = path.join(BASE, 'datos');
@@ -25,9 +26,10 @@ fs.mkdirSync(BK_DIR, { recursive: true });
 
 const CFG_FILE = path.join(BASE, 'config.json');
 let CFG = { puerto: 8080, carpetaRespaldoExtra: '', respaldosAGuardar: 60, horasEntreRespaldos: 2, actualizacionesAutomaticas: true, repoActualizaciones: '',
-  equipo: '', equipoId: '', facturaEnEsteEquipo: true, sync: { repo: '', token: '' } };
+  equipo: '', equipoId: '', facturaEnEsteEquipo: true, sync: { repo: '', token: '' }, impresora: { nombre: '', columnas: 48, acentos: true } };
 try { Object.assign(CFG, JSON.parse(fs.readFileSync(CFG_FILE, 'utf8'))); } catch (e) {}
 if (!CFG.sync || typeof CFG.sync !== 'object') CFG.sync = { repo: '', token: '' };
+if (!CFG.impresora || typeof CFG.impresora !== 'object') CFG.impresora = { nombre: '', columnas: 48, acentos: true };
 if (!CFG.equipo) CFG.equipo = os.hostname() || 'Computadora';
 // identificador único de esta computadora (vive en config.json, no en la base: así un respaldo restaurado no lo copia)
 if (!/^d[0-9a-f]{10}$/.test(String(CFG.equipoId || ''))) CFG.equipoId = 'd' + crypto.randomBytes(5).toString('hex');
@@ -359,7 +361,8 @@ async function api(req, res, url) {
     const hayUsuarios = usuarios().length > 0;
     const u = sessionUser(req);
     return send(res, 200, { version: VERSION, hayUsuarios, yo: u ? publicUser(u) : null, ips: ips(), puerto: CFG.puerto, ahora: Date.now(),
-      equipo: CFG.equipo, factura: CFG.facturaEnEsteEquipo !== false, uniendo: !!meta('uniendo'), sync: estadoSync() });
+      equipo: CFG.equipo, factura: CFG.facturaEnEsteEquipo !== false, uniendo: !!meta('uniendo'), sync: estadoSync(),
+      impresoraDirecta: !!CFG.impresora.nombre, windows: process.platform === 'win32' });
   }
   // primer arranque: enlazar con la computadora del restaurante antes de crear usuarios
   if (route === 'enlazar' && req.method === 'POST') {
@@ -563,11 +566,36 @@ async function api(req, res, url) {
       setMeta('comandas', JSON.stringify({ dia, n: numero }));
       const mu = m.mesero ? readDoc('usuarios/' + m.mesero) : null;
       const comanda = { numero, mesa: m.nombre, cliente: String(m.cliente || '').slice(0, 60), mesero: (mu && mu.nombre) || u.nombre, hora: ahora.toISOString(), lineas };
-      writeDoc('impresiones/' + crypto.randomUUID().slice(0, 16), { tipo: 'comanda', comanda, estado: 'pendiente', creado: ahora.toISOString(), por: u.id });
       return comanda;
     });
+    if (r) {
+      let impreso = false;
+      if (CFG.impresora.nombre) { try { await imprimirDirecto({ tipo: 'comanda', comanda: r }); impreso = true; } catch (e) { log('Impresión directa (comanda):', e.message); } }
+      if (!impreso) writeDoc('impresiones/' + crypto.randomUUID().slice(0, 16), { tipo: 'comanda', comanda: r, estado: 'pendiente', creado: new Date().toISOString(), por: u.id });
+    }
     emitir(['mesas', 'impresiones']);
     return send(res, 200, { ok: !!r, comanda: r });
+  }
+  if (route === 'imprimir' && req.method === 'POST') {
+    const b = await body(req);
+    if (!CFG.impresora.nombre) throw err(400, 'No hay impresora configurada para impresión directa');
+    try { await imprimirDirecto(b); } catch (e) { log('Impresión directa:', e.message); throw err(502, e.message); }
+    return send(res, 200, { ok: true });
+  }
+  if (route === 'impresoras' && req.method === 'GET') {
+    if (!isAdmin(u)) throw err(403, 'Solo el administrador');
+    let lista = [], error = null;
+    try { lista = await IMP.listarImpresoras(); } catch (e) { error = e.message; }
+    return send(res, 200, { lista, error, actual: CFG.impresora, windows: process.platform === 'win32' });
+  }
+  if (route === 'impresora' && req.method === 'POST') {
+    if (!isAdmin(u)) throw err(403, 'Solo el administrador');
+    const b = await body(req);
+    const cols = [32, 42, 48, 56, 64].includes(Number(b.columnas)) ? Number(b.columnas) : 48;
+    CFG.impresora = { nombre: String(b.nombre || '').slice(0, 200), columnas: cols, acentos: b.acentos !== false };
+    guardarCfg(); log('Impresora directa:', CFG.impresora.nombre || '(ninguna)', cols, 'columnas');
+    emitir(['__estado']);
+    return send(res, 200, { ok: true, actual: CFG.impresora });
   }
   if (route === 'tomarImpresion' && req.method === 'POST') {
     const b = await body(req); const p = 'impresiones/' + String(b.id || ''); parsePath(p, true);
@@ -724,6 +752,37 @@ function aplicarActualizacion(forzar) {
     setTimeout(() => { try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); db.close(); } catch (_) {} process.exit(75); }, 800);
     return true;
   } catch (e) { UPD.estado = 'error'; UPD.error = 'No se pudo instalar: ' + e.message; log(UPD.error); return false; }
+}
+
+/* ---------------- impresión directa (ESC/POS) ---------------- */
+let LOGO_DEF = null;
+function logoParaImprimir() {
+  const neg = readDoc('config/negocio') || {};
+  if (neg.logoFactura === false) return null;
+  let data = (readDoc('config/logo') || {}).data;
+  if (!data) {
+    if (LOGO_DEF === null) { try { LOGO_DEF = (/const LOGO_DEF='(data:image\/png;base64,[^']+)'/.exec(fs.readFileSync(path.join(BASE, 'app.html'), 'utf8')) || [])[1] || ''; } catch (_) { LOGO_DEF = ''; } }
+    data = LOGO_DEF;
+  }
+  const ancho = neg.ahorroPapel === false ? 240 : 160;
+  try { return IMP.logoRaster(data, ancho); } catch (e) { log('Logo para imprimir:', e.message); return null; }
+}
+function bytesTrabajo(job) {
+  const o = { cols: Number(CFG.impresora.columnas) || 48, acentos: CFG.impresora.acentos !== false };
+  const neg = readDoc('config/negocio') || {};
+  if (job.tipo === 'factura') {
+    const f = readDoc('facturas/' + String(job.facturaId || ''));
+    if (!f) throw new Error('No se encontró la factura');
+    return IMP.factura(f, { ...o, logo: logoParaImprimir() });
+  }
+  if (job.tipo === 'comanda') return IMP.comanda(job.comanda || {}, o);
+  if (job.tipo === 'recibo') return IMP.texto(String(job.texto || job.html || ''), { ...o, logo: logoParaImprimir() });
+  if (job.tipo === 'prueba') return IMP.prueba({ ...o, logo: logoParaImprimir() }, neg.nombre);
+  throw new Error('Tipo de impresión desconocido');
+}
+async function imprimirDirecto(job) {
+  if (!CFG.impresora.nombre) throw new Error('No hay impresora configurada');
+  await IMP.enviar(CFG.impresora.nombre, bytesTrabajo(job), DATA_DIR);
 }
 
 /* ---------------- sincronización con GitHub (repositorio privado) ----------------
