@@ -16,7 +16,7 @@ process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 const IMP = require('./impresion.js');
 
-const VERSION = '2.6.0';
+const VERSION = '2.7.0';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante'; // usuario/repositorio en GitHub
 const BASE = __dirname;
 const DATA_DIR = path.join(BASE, 'datos');
@@ -560,7 +560,7 @@ async function api(req, res, url) {
       for (const [k, v] of Object.entries(env)) if (!vistos.has(k) && v && v.c > 0) lineas.push({ nombre: v.n, cant: -v.c, nota: '' });
       if (!lineas.length) { if (JSON.stringify(env) !== JSON.stringify(nuevoEnv)) escribirLocal('set', p, { ...m, enviados: nuevoEnv }); return null; }
       escribirLocal('set', p, { ...m, enviados: nuevoEnv });
-      const ahora = new Date(); const z = n => String(n).padStart(2, '0'); const dia = `${ahora.getFullYear()}-${z(ahora.getMonth() + 1)}-${z(ahora.getDate())}`;
+      const ahora = new Date(); const z = n => String(n).padStart(2, '0'); const ref = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - 1); const corte = (ref.getDay() === 5 || ref.getDay() === 6) ? 3 : 1; const base = ahora.getHours() < corte ? ref : ahora; const dia = `${base.getFullYear()}-${z(base.getMonth() + 1)}-${z(base.getDate())}`; // jornada
       let cont = {}; try { cont = JSON.parse(meta('comandas', '{}')); } catch (_) {}
       const numero = cont.dia === dia ? (cont.n || 0) + 1 : 1;
       setMeta('comandas', JSON.stringify({ dia, n: numero }));
@@ -957,6 +957,32 @@ server.on('error', e => {
   if (e.code === 'EADDRINUSE') { log('El sistema ya está funcionando en el puerto', CFG.puerto); process.exit(0); }
   log('ERROR del servidor:', e.message); process.exit(1);
 });
+/* Jornada: 10 am a 1 am (dom–jue) o 3 am (vie y sáb). Lo vendido después de medianoche
+ * cuenta para el día en que se abrió. Se corrigen una sola vez los registros anteriores. */
+function jornadaDe(ts) {
+  const d = new Date(ts); const ref = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+  const corte = (ref.getDay() === 5 || ref.getDay() === 6) ? 3 : 1;
+  return diaLocal((d.getHours() < corte ? ref : d).getTime());
+}
+(function migrarJornada() {
+  if (meta('migJornada', '') === '1') return;
+  let n = 0;
+  try {
+    tx(() => {
+      for (const col of ['facturas', 'abonos', 'gastos']) {
+        for (const r of st.col.all(col)) {
+          const d = JSON.parse(r.data); if (!d || !d.fecha || !d.dia) continue;
+          const t = Date.parse(d.fecha); if (!isFinite(t)) continue;
+          const j = jornadaDe(t);
+          if (j !== d.dia) { escribirLocal('update', r.path, { dia: j }); n++; }
+        }
+      }
+      setMeta('migJornada', '1');
+    });
+    if (n) log(`Jornadas: ${n} registro(s) de madrugada pasados al día en que se abrió`);
+  } catch (e) { log('No se pudieron ajustar las jornadas: ' + e.message); }
+})();
+
 server.listen(CFG.puerto, '0.0.0.0', () => {
   log(`Sistema del Restaurante v${VERSION} funcionando.`);
   log(`En esta computadora: http://localhost:${CFG.puerto}`);

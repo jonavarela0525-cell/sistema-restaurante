@@ -112,7 +112,13 @@ const r3=n=>Math.round((Number(n)+Number.EPSILON)*1000)/1000;
 const num=v=>{let s=String(v??'').trim();if(s.includes('.')&&s.includes(','))s=s.replace(/,/g,'');else s=s.replace(',','.');const n=Number(s);return isFinite(n)?n:0};
 const L=n=>'L '+(Number(n)||0).toLocaleString('es-HN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fdia=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-const hoy=()=>fdia(new Date());
+// Jornada del restaurante: abre 10 am; dom–jue cierra 1 am, vie y sáb cierra 3 am del día siguiente.
+// Lo que pasa después de medianoche (antes de la hora de cierre) cuenta para el día en que se abrió.
+const cierreJornada=dow=>(dow===5||dow===6)?3:1;
+const jornada=d=>{const p=new Date(d.getFullYear(),d.getMonth(),d.getDate()-1);return d.getHours()<cierreJornada(p.getDay())?fdia(p):fdia(d)};
+const horarioDe=dia=>{const [y,m,dd]=String(dia).split('-').map(Number);const c=cierreJornada(new Date(y,m-1,dd).getDay());return '10:00 am a '+c+':00 am del día siguiente'};
+const hoy=()=>jornada(new Date());
+const diaBase=()=>{const [y,m,d]=hoy().split('-').map(Number);return new Date(y,m-1,d)};
 const nid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const TAB=nid();
@@ -325,7 +331,7 @@ async function emitir(o){
   const ahora=new Date();
   const its=items.map(it=>({nombre:it.nombre,platoId:it.platoId,precio:Number(it.precio),tasa:Number(it.tasa),cant:Number(it.cant),nota:it.nota||'',receta:((S.platos[it.platoId]||{}).receta||[]).map(r=>({insumoId:r.insumoId,cantidad:Number(r.cantidad)}))}));
   const totalPagar=r2(t.total+o.servicio);
-  const f={numero,nro,fiscal:conCAI,fecha:ahora.toISOString(),dia:fdia(ahora),mesa:m.nombre,cliente:o.cliente,rtn:o.rtn,items:its,...t,
+  const f={numero,nro,fiscal:conCAI,fecha:ahora.toISOString(),dia:jornada(ahora),mesa:m.nombre,cliente:o.cliente,rtn:o.rtn,items:its,...t,
     servicio:o.servicio,servicioPct:o.servicioPct,totalPagar,metodo:o.metodo,recibido:r2(o.recibido),cambio:r2(Math.max(0,o.recibido-totalPagar)),
     cajero:S.uid||null,anulada:false,
     ...(o.metodo==='Crédito'?{creditoPendiente:true,saldo:totalPagar,plazo:o.plazo,vence:fdia(new Date(ahora.getTime()+o.plazo*86400000))}:{creditoPendiente:false,saldo:0}),
@@ -543,7 +549,7 @@ function registrarAbono(id,monto,metodo){
     if(monto>antes+0.004)throw new Error('El abono es mayor que el saldo ('+L(antes)+')');
     const despues=r2(antes-monto);const ahora=new Date();const abId=nid();
     try{await ref.update({abonos:{[abId]:monto}});
-      const ab={facturaId:id,numero:f.numero,cliente:f.cliente,monto,metodo,saldoAntes:antes,saldoDespues:despues,fecha:ahora.toISOString(),dia:fdia(ahora),por:S.uid||null,equipo:S.info.equipo||''};
+      const ab={facturaId:id,numero:f.numero,cliente:f.cliente,monto,metodo,saldoAntes:antes,saldoDespues:despues,fecha:ahora.toISOString(),dia:jornada(ahora),por:S.uid||null,equipo:S.info.equipo||''};
       await S.db.doc('abonos/'+abId).set(ab);return ab}
     catch(e){if(e&&e.code)writeErr(e);throw e}
   });
@@ -557,7 +563,7 @@ function vCaja(){
   pedirNombres(fs.map(f=>f.cajero));
   const cr=[...S.creditos].filter(f=>!f.anulada).sort((a,b)=>String(a.vence).localeCompare(String(b.vence)));
   const totCred=r2(cr.reduce((a,f)=>a+Number(f.saldo||0),0));const abHoy=r2(S.abonosHoy.reduce((a,x)=>a+Number(x.monto||0),0));
-  return `<h2>Caja de hoy</h2>
+  return `<h2 style="margin-bottom:2px">Caja de hoy</h2><p class="mute" style="margin:0 0 10px">Jornada del ${fechaCorta(hoy())} · ${horarioDe(hoy())}</p>
   <div class="kpis"><div class="kpi"><span>Vendido hoy</span><b>${L(tot)}</b></div><div class="kpi"><span>Facturas</span><b>${val.length}</b></div><div class="kpi"><span>Mesas abiertas</span><b>${pend.length}</b></div><div class="kpi"><span>En mesas sin cobrar</span><b>${L(pend.reduce((a,m)=>a+totalItems(m.items),0))}</b></div><div class="kpi"><span>Créditos por cobrar</span><b>${L(totCred)}</b></div><div class="kpi"><span>Abonos recibidos hoy</span><b>${L(abHoy)}</b></div><div class="kpi"><span>Gastos de hoy</span><b>${L(S.gastosHoy.filter(g=>!g.anulado).reduce((a,g)=>a+Number(g.monto||0),0))}</b></div></div>
   <h3>Créditos pendientes ${cr.length?`<span class="pill a">${cr.length}</span>`:''}</h3>
   <div class="card">${cr.length?`<div class="list">${cr.map(f=>{const venc=f.vence&&f.vence<hoy();return `<div class="it click" data-act="verCred" data-id="${esc(f.id)}"><div class="sp"><b>${esc(f.cliente)}</b> ${venc?'<span class="pill bad">Vencido</span>':''}<div class="mute">${esc(f.numero)} · vence ${esc(fechaCorta(f.vence))} · total ${L(f.totalPagar)}</div></div><div class="r"><b>${L(f.saldo)}</b><div class="mute">saldo</div></div></div>`}).join('')}</div>`:'<p class="mute">No hay clientes con saldo pendiente.</p>'}</div>
@@ -575,7 +581,7 @@ function vCaja(){
    <div id="listaF">${listaFacturas()}</div>
   </div>`;
 }
-function ayer(){const d=new Date();d.setDate(d.getDate()-1);return fdia(d)}
+function ayer(){const d=diaBase();d.setDate(d.getDate()-1);return fdia(d)}
 function facturasDelDia(){return S.cajaDia===hoy()?S.facturasHoy:(S.cajaCache[S.cajaDia]||null)}
 function listaFacturas(){
   const todas=facturasDelDia();
@@ -615,7 +621,7 @@ function nuevoGasto(){
     sh.querySelector('[data-x=o]').onclick=async e=>{const d=sh.querySelector('#gD').value.trim(),m=r2(num(sh.querySelector('#gM').value));
       if(!d){toast('Escribe en qué se gastó');return}if(!(m>0)){toast('Escribe el monto');return}
       const bt=e.currentTarget;bt.disabled=true;const now=new Date();
-      try{await W('gastos/'+nid(),'set',{desc:d,cat:sh.querySelector('#gT').value,monto:m,pago:sh.querySelector('#gP').value,fecha:now.toISOString(),ts:now.getTime(),dia:fdia(now),por:S.uid||null,porNombre:(S.yo&&S.yo.nombre)||'',equipo:S.info.equipo||'',anulado:false});closeModal();toast('Gasto registrado')}catch(_){bt.disabled=false}}});
+      try{await W('gastos/'+nid(),'set',{desc:d,cat:sh.querySelector('#gT').value,monto:m,pago:sh.querySelector('#gP').value,fecha:now.toISOString(),ts:now.getTime(),dia:jornada(now),por:S.uid||null,porNombre:(S.yo&&S.yo.nombre)||'',equipo:S.info.equipo||'',anulado:false});closeModal();toast('Gasto registrado')}catch(_){bt.disabled=false}}});
 }
 const pedidos=new Set();
 async function pedirNombres(ids){
@@ -706,7 +712,7 @@ function entrada(id){
 }
 
 /* ---------- REPORTES ---------- */
-function rango(modo){const d=new Date();if(modo==='hoy')return[hoy(),hoy()];if(modo==='7'){const a=new Date(d);a.setDate(a.getDate()-6);return[fdia(a),hoy()]}if(modo==='mes')return[fdia(new Date(d.getFullYear(),d.getMonth(),1)),hoy()];if(modo==='mesant'){return[fdia(new Date(d.getFullYear(),d.getMonth()-1,1)),fdia(new Date(d.getFullYear(),d.getMonth(),0))]}return[S.rep.desde,S.rep.hasta]}
+function rango(modo){const d=diaBase();if(modo==='hoy')return[hoy(),hoy()];if(modo==='7'){const a=new Date(d);a.setDate(a.getDate()-6);return[fdia(a),hoy()]}if(modo==='mes')return[fdia(new Date(d.getFullYear(),d.getMonth(),1)),hoy()];if(modo==='mesant'){return[fdia(new Date(d.getFullYear(),d.getMonth()-1,1)),fdia(new Date(d.getFullYear(),d.getMonth(),0))]}return[S.rep.desde,S.rep.hasta]}
 async function cargarReporte(){
   if(!S.db)return;S.rep.cargando=true;
   try{const q=S.db.collection('facturas').where('dia','>=',S.rep.desde).where('dia','<=',S.rep.hasta).limit(1000);const s=await q.get();S.rep.data=s.docs.map(d=>({id:d.id,...d.data()}));
@@ -771,7 +777,7 @@ function vCierre(){
 }
 function lineasArqueo(c){
   const ls=[];const f=(a,b,n)=>ls.push({t:'f',a,b,n:!!n});const sec=a=>ls.push({t:'s',a});
-  ls.push({t:'t',a:(S.negocio&&S.negocio.nombre)||'Restaurante'});ls.push({t:'c',a:'ARQUEO DE CAJA '+fechaCorta(c.dia)});
+  ls.push({t:'t',a:(S.negocio&&S.negocio.nombre)||'Restaurante'});ls.push({t:'c',a:'ARQUEO DE CAJA '+fechaCorta(c.dia)});ls.push({t:'c',a:'Jornada '+horarioDe(c.dia)});
   ls.push({t:'c',a:'Hora '+new Date(c.hora).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})+(c.porNombre?' · '+c.porNombre:'')});
   sec('EFECTIVO');f('Fondo inicial',L(c.fondo));f('+ Ventas en efectivo',L(c.ventasEfectivo||0));f('+ Abonos en efectivo',L(c.abonosEfectivo||0));f('- Gastos en efectivo',L(c.gastosEfectivo||0));f('DEBÍA HABER',L(c.esperado),1);
   const cont=c.conteo||{};if(Object.keys(cont).length){sec('CONTEO');DENOM.filter(d=>cont[d]).forEach(d=>f(cont[d]+' x L '+d,L(cont[d]*d)))}
@@ -835,7 +841,7 @@ function vRepDia(){
 }
 function lineasFicha(R){
   const n=S.negocio||{};const ls=[];const f=(a,b,neg)=>ls.push({t:'f',a,b,n:!!neg});const sec=a=>ls.push({t:'s',a});
-  ls.push({t:'t',a:n.nombre||'Restaurante'});ls.push({t:'c',a:'REPORTE DEL DÍA '+fechaCorta(R.d)});ls.push({t:'c',a:'Impreso '+new Date().toLocaleString('es-HN')});
+  ls.push({t:'t',a:n.nombre||'Restaurante'});ls.push({t:'c',a:'REPORTE DEL DÍA '+fechaCorta(R.d)});ls.push({t:'c',a:'Jornada '+horarioDe(R.d)});ls.push({t:'c',a:'Impreso '+new Date().toLocaleString('es-HN')});
   sec('RESUMEN');f('Facturas',String(R.n));f('Ventas (total cobrado)',L(R.venta),1);f('ISV cobrado',L(R.isv));if(R.serv)f('Servicio / propinas',L(R.serv));f('Ventas netas',L(R.ventaNeta));f('Costo de lo vendido',L(R.costo));f('Ganancia bruta',L(R.gan));f('Gastos',L(R.gTot));f('UTILIDAD DEL DÍA',L(R.util),1);
   sec('FORMAS DE PAGO');Object.entries(R.pagos).forEach(([k,v])=>f(k,L(v)));
   sec('ABONOS RECIBIDOS');Object.entries(R.abP).forEach(([k,v])=>f(k,L(v)));f('Total abonos',L(R.abTot),1);
@@ -901,7 +907,7 @@ async function fichaPDF(R){
   const pdf=nuevoPDF(),W=pdf.W,H=pdf.H,M=40,OSC='#2a2420',CLARO='#fff8ef',MUT='#7a6f66';let y=0,logo=null;
   try{logo=await imgAJpeg(logoSrc(),360)}catch(e){}
   const nom=(S.negocio&&S.negocio.nombre)||'Restaurante';
-  const head=()=>{pdf.pagina();pdf.rect(0,0,W,80,OSC);let tx=M;if(logo){const h=56,w=logo.w*h/logo.h;pdf.rect(M-4,8,w+8,h+8,'#ffffff');pdf.imagen(logo.bytes,logo.w,logo.h,M,12,w,h);tx=M+w+18}pdf.texto(nom,tx,36,18,'F2',CLARO);pdf.texto('Reporte del día '+fechaCorta(R.d)+' · '+fechaLarga(R.d),tx,56,11,'F1',CLARO);y=104};
+  const head=()=>{pdf.pagina();pdf.rect(0,0,W,80,OSC);let tx=M;if(logo){const h=56,w=logo.w*h/logo.h;pdf.rect(M-4,8,w+8,h+8,'#ffffff');pdf.imagen(logo.bytes,logo.w,logo.h,M,12,w,h);tx=M+w+18}pdf.texto(nom,tx,36,18,'F2',CLARO);pdf.texto('Reporte del día '+fechaCorta(R.d)+' · '+fechaLarga(R.d),tx,56,11,'F1',CLARO);pdf.texto('Jornada '+horarioDe(R.d),tx,71,9,'F1',CLARO);y=104};
   const need=h=>{if(y+h>H-50)head()};
   const sec=t=>{need(40);y+=8;pdf.texto(t,M,y,13,'F2',OSC);y+=6;pdf.rect(M,y,W-2*M,0.8,'#e2d6c8');y+=14};
   const fila=(a,b,bold)=>{need(16);pdf.texto(partirTxt(a,bold?'F2':'F1',10,W-2*M-110,1)[0],M,y,10,bold?'F2':'F1');pdf.texto(b,W-M,y,10,bold?'F2':'F1',null,'r');y+=15};
