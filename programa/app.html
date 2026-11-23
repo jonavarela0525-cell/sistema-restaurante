@@ -563,6 +563,7 @@ function vCaja(){
   <div class="card">${cr.length?`<div class="list">${cr.map(f=>{const venc=f.vence&&f.vence<hoy();return `<div class="it click" data-act="verCred" data-id="${esc(f.id)}"><div class="sp"><b>${esc(f.cliente)}</b> ${venc?'<span class="pill bad">Vencido</span>':''}<div class="mute">${esc(f.numero)} · vence ${esc(fechaCorta(f.vence))} · total ${L(f.totalPagar)}</div></div><div class="r"><b>${L(f.saldo)}</b><div class="mute">saldo</div></div></div>`}).join('')}</div>`:'<p class="mute">No hay clientes con saldo pendiente.</p>'}</div>
   <div class="row" style="margin-top:16px"><h3 class="sp" style="margin:0">Gastos de caja de hoy</h3>${S.canWrite?'<button class="btn sm p" data-act="nuevoGasto">+ Registrar gasto</button>':''}</div>
   <div class="card" style="margin-top:8px">${listaGastos()}</div>
+  ${vCierre()}
   <h3>Facturas</h3>
   <div class="card">
    <div class="row wrap" style="gap:6px;margin-bottom:8px">
@@ -748,7 +749,6 @@ function vRepPeriodo(){
   ${diasA.length>1?`<h3>Ventas por día</h3><div class="card">${diasA.map(([d,v])=>`<div class="row" style="margin:6px 0"><span class="mute" style="width:84px">${d.slice(5)}</span><div class="sp"><div class="bar" style="width:${(v/maxD*100).toFixed(1)}%"></div></div><span style="width:100px" class="r">${L(v)}</span></div>`).join('')}</div>`:''}
   <h3>Platos más vendidos</h3><div class="card">${topA.length?topA.map(([k,v])=>`<div style="margin:8px 0"><div class="row"><span class="sp">${esc(k)} <span class="mute">× ${fmtQ(v.c)}</span></span><b>${L(v.m)}</b></div><div class="bar" style="width:${(v.m/maxT*100).toFixed(1)}%;opacity:.75;margin-top:4px"></div></div>`).join(''):'<p class="mute">Sin ventas en este periodo.</p>'}</div>
   ${S.dl&&R.data.length?'<button class="btn full" style="margin-top:12px" data-act="csv">Descargar facturas (CSV para Excel)</button>':''}`;
-  if(S.isAdmin&&R.desde<=hoy()&&R.hasta>=hoy())h+=vCierre();
   return h;
 }
 const DENOM=[500,200,100,50,20,10,5,2,1];
@@ -758,16 +758,27 @@ function vCierre(){
   const gEfe=r2(S.gastosHoy.filter(g=>!g.anulado&&g.pago==='Efectivo').reduce((x,g)=>x+Number(g.monto||0),0));
   const efe=r2(vEfe+aEfe-gEfe);
   const c=S.cierreHoy;const cont=(c&&c.conteo)||{};
-  return `<h3>Cierre de caja de hoy</h3><div class="card">
+  return `<div class="row" style="margin-top:16px"><h3 class="sp" style="margin:0">Arqueo de caja de hoy</h3>${c?'<button class="btn sm" data-act="imprimirArqueo">🖨️ Imprimir arqueo</button>':''}</div><div class="card" style="margin-top:8px">
    <table class="t" style="margin-bottom:8px"><tr><td>+ Ventas en efectivo</td><td class="r">${L(vEfe)}</td></tr><tr><td>+ Abonos de crédito en efectivo</td><td class="r">${L(aEfe)}</td></tr><tr><td>− Gastos pagados en efectivo</td><td class="r">${L(gEfe)}</td></tr><tr><td><b>Movimiento de efectivo del día</b></td><td class="r"><b>${L(efe)}</b></td></tr></table>
-   ${c?`<div class="banner ${Math.abs(c.diferencia)<0.01?'':'w'}" style="margin-bottom:8px">Último cierre a las ${new Date(c.hora).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})}: debía haber ${L(c.esperado)}, se contó ${L(c.contado)} · ${Math.abs(c.diferencia)<0.01?'<b>cuadra</b>':(c.diferencia<0?'<b>faltan</b> ':'<b>sobran</b> ')+L(Math.abs(c.diferencia))}</div>`:''}
+   ${c?`<div class="banner ${Math.abs(c.diferencia)<0.01?'':'w'}" style="margin-bottom:8px">Último arqueo a las ${new Date(c.hora).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})}: debía haber ${L(c.esperado)}, se contó ${L(c.contado)} · ${Math.abs(c.diferencia)<0.01?'<b>cuadra</b>':(c.diferencia<0?'<b>faltan</b> ':'<b>sobran</b> ')+L(Math.abs(c.diferencia))}</div>`:''}
    ${S.canWrite?`<label>Fondo inicial de caja (con cuánto se abrió)</label><input id="cF" inputmode="decimal" value="${esc(c?c.fondo:'')}" placeholder="0.00">
    <p class="mute" style="margin:10px 0 4px">Cuenta el efectivo: cuántos billetes y monedas hay de cada uno (o escribe el total abajo).</p>
    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px">${DENOM.map(d=>`<label style="margin:0">L ${d}<input id="den_${d}" inputmode="numeric" value="${esc(cont[d]||'')}" placeholder="0"></label>`).join('')}</div>
    <label>Efectivo contado (L)</label><input id="cK" inputmode="decimal" value="${esc(c?c.contado:'')}" placeholder="0.00">
    <div id="cEsp" class="mute" style="margin-top:6px"></div>
    <label>Notas</label><input id="cN" value="${esc(c?c.notas:'')}" placeholder="Ej. faltante por cambio mal dado">
-   <button class="btn p full" style="margin-top:12px" data-act="guardarCierre" data-efe="${efe}" data-vefe="${vEfe}" data-aefe="${aEfe}" data-gefe="${gEfe}">Guardar cierre</button>`:''}</div>`;
+   <button class="btn p full" style="margin-top:12px" data-act="guardarCierre" data-efe="${efe}" data-vefe="${vEfe}" data-aefe="${aEfe}" data-gefe="${gEfe}">${c?'Actualizar arqueo':'Guardar arqueo'}</button>`:''}</div>`;
+}
+function lineasArqueo(c){
+  const ls=[];const f=(a,b,n)=>ls.push({t:'f',a,b,n:!!n});const sec=a=>ls.push({t:'s',a});
+  ls.push({t:'t',a:(S.negocio&&S.negocio.nombre)||'Restaurante'});ls.push({t:'c',a:'ARQUEO DE CAJA '+fechaCorta(c.dia)});
+  ls.push({t:'c',a:'Hora '+new Date(c.hora).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})+(c.porNombre?' · '+c.porNombre:'')});
+  sec('EFECTIVO');f('Fondo inicial',L(c.fondo));f('+ Ventas en efectivo',L(c.ventasEfectivo||0));f('+ Abonos en efectivo',L(c.abonosEfectivo||0));f('- Gastos en efectivo',L(c.gastosEfectivo||0));f('DEBÍA HABER',L(c.esperado),1);
+  const cont=c.conteo||{};if(Object.keys(cont).length){sec('CONTEO');DENOM.filter(d=>cont[d]).forEach(d=>f(cont[d]+' x L '+d,L(cont[d]*d)))}
+  sec('RESULTADO');f('Contado',L(c.contado),1);f(Math.abs(c.diferencia)<0.01?'CUADRA':c.diferencia<0?'FALTANTE':'SOBRANTE',L(Math.abs(c.diferencia)),1);
+  if(c.notas)ls.push({t:'p',a:'Nota: '+c.notas});
+  ls.push({t:'p',a:' '});ls.push({t:'p',a:'Firma: ______________________'});
+  return ls;
 }
 function calcCierre(){const f=num(($('#cF')||{}).value),k=num(($('#cK')||{}).value),b=$('[data-act=guardarCierre]');if(!b)return;const esp=r2(f+num(b.dataset.efe));const el=$('#cEsp');if(el)el.innerHTML=`Debería haber <b>${L(esp)}</b> · ${Math.abs(k-esp)<0.01?'<b style="color:var(--ok)">cuadra</b>':(k-esp<0?'<b style="color:var(--bad)">faltan ':'<b style="color:var(--warn)">sobran ')+L(Math.abs(k-esp))+'</b>'}`}
 /* ---------- reporte diario (ficha) ---------- */
@@ -1089,6 +1100,9 @@ document.addEventListener('click',async e=>{
     case 'impCargar':{b.disabled=true;b.textContent='Buscando impresoras…';try{const r=await api('impresoras');S.impDir={cargada:true,...r}}catch(e){S.impDir={cargada:true,error:e.message}}pintarImpDirecta();break}
     case 'impGuardar':{b.disabled=true;try{const r=await api('impresora',{nombre:$('#impNom').value,columnas:Number($('#impCol').value),acentos:$('#impAc').value==='1'});S.impDir.actual=r.actual;S.info.impresoraDirecta=!!r.actual.nombre;S.dirty=false;toast(r.actual.nombre?'Impresión directa activada':'Impresión directa desactivada');render()}catch(e){toast(e.message);b.disabled=false}break}
     case 'nuevoGasto':nuevoGasto();break;
+    case 'imprimirArqueo':{const c=S.cierreHoy;if(!c){toast('Primero guarda el arqueo');break}const ls=lineasArqueo(c);
+      if(S.info.impresoraDirecta){try{await api('imprimir',{tipo:'reporte',lineas:ls});toast('Arqueo enviado a la impresora');break}catch(e){toast('Impresora directa: '+e.message)}}
+      imprimir(docImpresion(fichaHTML(ls),'Arqueo '+c.dia));break}
     case 'anularGasto':{if(!twoTap(b,'¿Anular gasto?'))break;try{await W('gastos/'+id,'update',{anulado:true,anuladoPor:S.uid||null,anuladoEn:new Date().toISOString()});toast('Gasto anulado')}catch(_){}break}
     case 'repVista':{S.repVista=b.dataset.v;if(S.repVista==='dia')S.rd={dia:(S.rd&&S.rd.dia)||hoy()};else S.rep.data=null;render();break}
     case 'rdImprimir':{const R=datosDia();const ls=lineasFicha(R);if(S.info.impresoraDirecta){try{await api('imprimir',{tipo:'reporte',lineas:ls});toast('Ficha enviada a la impresora');break}catch(e){toast('Impresora directa: '+e.message)}}imprimir(docImpresion(fichaHTML(ls),'Reporte '+R.d));break}
@@ -1108,7 +1122,7 @@ document.addEventListener('click',async e=>{
     case 'rAplicar':{const d=$('#rD').value,h=$('#rH').value;if(!d||!h||d>h){toast('Revisa las fechas');break}S.rep.desde=d;S.rep.hasta=h;S.rep.data=null;limpio();break}
     case 'csv':csv();break;
     case 'guardarCierre':{const fondo=num($('#cF').value),contado=num($('#cK').value),efe=num(b.dataset.efe);const esperado=r2(fondo+efe);const conteo={};DENOM.forEach(d=>{const n=Math.floor(num(($('#den_'+d)||{}).value));if(n>0)conteo[d]=n});
-      b.disabled=true;try{const c={dia:hoy(),fondo:r2(fondo),ventasEfectivo:num(b.dataset.vefe),abonosEfectivo:num(b.dataset.aefe),gastosEfectivo:num(b.dataset.gefe),movimiento:efe,esperado,contado:r2(contado),diferencia:r2(contado-esperado),conteo,notas:$('#cN').value.trim(),hora:new Date().toISOString(),por:S.uid||null,porNombre:(S.yo&&S.yo.nombre)||''};await W('cierres/'+hoy(),'set',c);S.cierreHoy=c;toast('Cierre guardado. Diferencia: '+L(c.diferencia));S.rd={dia:(S.rd&&S.rd.dia)||hoy()};limpio()}catch(_){b.disabled=false}break}
+      b.disabled=true;try{const c={dia:hoy(),fondo:r2(fondo),ventasEfectivo:num(b.dataset.vefe),abonosEfectivo:num(b.dataset.aefe),gastosEfectivo:num(b.dataset.gefe),movimiento:efe,esperado,contado:r2(contado),diferencia:r2(contado-esperado),conteo,notas:$('#cN').value.trim(),hora:new Date().toISOString(),por:S.uid||null,porNombre:(S.yo&&S.yo.nombre)||''};await W('cierres/'+hoy(),'set',c);S.cierreHoy=c;toast(Math.abs(c.diferencia)<0.01?'Arqueo guardado: la caja cuadra':'Arqueo guardado: '+(c.diferencia<0?'faltan ':'sobran ')+L(Math.abs(c.diferencia)));S.rd={dia:(S.rd&&S.rd.dia)||hoy()};limpio()}catch(_){b.disabled=false}break}
     case 'guardarNeg':{const g=s=>$(s).value.trim();const d1=Math.floor(num(g('#a1'))),d2=Math.floor(num(g('#a2')));
       if((g('#aC')||d1||d2)&&!(g('#aC')&&d1&&d2&&d2>=d1)){toast('Para facturar con CAI llena CAI y un rango válido');break}
       const rtn=g('#aT').replace(/\D/g,'');if(rtn&&rtn.length!==14){toast('El RTN debe tener 14 dígitos');break}
@@ -1131,8 +1145,8 @@ function sub(name,ref,onData){
 }
 S.loaded={};
 const READY=['negocio','insumos','platos','mesas','facturas','abonos','creditos','gastos'];
-let unsubHoy=null,unsubAb=null,unsubG=null,diaSub=null;
-function subHoy(){if(diaSub===hoy())return;diaSub=hoy();if(unsubHoy)unsubHoy();if(unsubAb)unsubAb();if(unsubG)unsubG();S.facturasHoy=[];S.abonosHoy=[];S.gastosHoy=[];unsubG=sub('gastos',S.db.collection('gastos').where('dia','==',diaSub),s=>{S.gastosHoy=s.docs.map(d=>({id:d.id,...d.data()}))});unsubAb=sub('abonos',S.db.collection('abonos').where('dia','==',diaSub),s=>{S.abonosHoy=s.docs.map(d=>d.data())});unsubHoy=sub('facturas',S.db.collection('facturas').where('dia','==',diaSub),s=>{S.facturasHoy=s.docs.map(d=>({id:d.id,...d.data()}))})}
+let unsubHoy=null,unsubAb=null,unsubG=null,unsubC=null,diaSub=null;
+function subHoy(){if(diaSub===hoy())return;diaSub=hoy();if(unsubHoy)unsubHoy();if(unsubAb)unsubAb();if(unsubG)unsubG();S.facturasHoy=[];S.abonosHoy=[];S.gastosHoy=[];if(unsubC)unsubC();S.cierreHoy=null;unsubC=S.db.doc('cierres/'+diaSub).onSnapshot(s=>{S.cierreHoy=s.exists?s.data():null;render()},()=>{});unsubG=sub('gastos',S.db.collection('gastos').where('dia','==',diaSub),s=>{S.gastosHoy=s.docs.map(d=>({id:d.id,...d.data()}))});unsubAb=sub('abonos',S.db.collection('abonos').where('dia','==',diaSub),s=>{S.abonosHoy=s.docs.map(d=>d.data())});unsubHoy=sub('facturas',S.db.collection('facturas').where('dia','==',diaSub),s=>{S.facturasHoy=s.docs.map(d=>({id:d.id,...d.data()}))})}
 function pantallaAcceso(setup,msg){
   S.pantalla=`<div class="card" style="max-width:380px;margin:30px auto"><div style="text-align:center">${logoImg('width:150px;height:150px;object-fit:contain')}</div><h2 style="text-align:center;margin-top:6px">${esc(S.info.nombreNegocio||'Sistema del Restaurante')}</h2>
    ${setup?'<p class="mute">Primera vez: crea la cuenta del <b>administrador</b> (dueño). Después podrás agregar a tu equipo en Ajustes.</p><label>Tu nombre</label><input id="lN" autocomplete="name">':''}

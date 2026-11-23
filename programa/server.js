@@ -16,7 +16,7 @@ process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 const IMP = require('./impresion.js');
 
-const VERSION = '2.5.1';
+const VERSION = '2.6.0';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante'; // usuario/repositorio en GitHub
 const BASE = __dirname;
 const DATA_DIR = path.join(BASE, 'datos');
@@ -197,7 +197,6 @@ const soloClaves = (obj, permitidas) => Object.keys(obj || {}).every(k => permit
 function checkRead(u, p) {
   const top = p.split('/')[0];
   if (top === 'usuarios' || top === 'sesiones') throw err(403, 'No permitido');
-  if (top === 'cierres' && !isAdmin(u)) throw err(403, 'Solo el administrador');
 }
 function checkWrite(u, op, p, data, existe) {
   const top = p.split('/')[0];
@@ -207,7 +206,8 @@ function checkWrite(u, op, p, data, existe) {
   const NO = () => { throw err(403, 'Solo el administrador puede hacer este cambio'); };
   switch (top) {
     case 'config': NO(); break; // el correlativo solo se toca con /api/siguiente
-    case 'platos': case 'cierres': NO(); break;
+    case 'platos': NO(); break;
+    case 'cierres': if (op === 'set') return; NO(); break; // el arqueo lo puede hacer quien está en la caja
     case 'insumos': NO(); break; // el stock se mueve con /api/stock
     case 'mesas': if (op !== 'update' || !soloClaves(data, ['items', 'abiertaEn', 'mesero', 'enviados', 'cliente'])) NO(); break;
     case 'facturas':
