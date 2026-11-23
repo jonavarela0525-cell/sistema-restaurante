@@ -529,8 +529,36 @@ function vCaja(){
   <div class="kpis"><div class="kpi"><span>Vendido hoy</span><b>${L(tot)}</b></div><div class="kpi"><span>Facturas</span><b>${val.length}</b></div><div class="kpi"><span>Mesas abiertas</span><b>${pend.length}</b></div><div class="kpi"><span>En mesas sin cobrar</span><b>${L(pend.reduce((a,m)=>a+totalItems(m.items),0))}</b></div><div class="kpi"><span>Créditos por cobrar</span><b>${L(totCred)}</b></div><div class="kpi"><span>Abonos recibidos hoy</span><b>${L(abHoy)}</b></div></div>
   <h3>Créditos pendientes ${cr.length?`<span class="pill a">${cr.length}</span>`:''}</h3>
   <div class="card">${cr.length?`<div class="list">${cr.map(f=>{const venc=f.vence&&f.vence<hoy();return `<div class="it click" data-act="verCred" data-id="${esc(f.id)}"><div class="sp"><b>${esc(f.cliente)}</b> ${venc?'<span class="pill bad">Vencido</span>':''}<div class="mute">${esc(f.numero)} · vence ${esc(fechaCorta(f.vence))} · total ${L(f.totalPagar)}</div></div><div class="r"><b>${L(f.saldo)}</b><div class="mute">saldo</div></div></div>`}).join('')}</div>`:'<p class="mute">No hay clientes con saldo pendiente.</p>'}</div>
-  <h3>Facturas emitidas</h3>
-  <div class="card">${fs.length?`<div class="list">${fs.map(f=>`<div class="it click" data-act="verF" data-id="${esc(f.id)}"><div class="sp"><b>${esc(f.numero)}</b> ${f.anulada?'<span class="pill bad">Anulada</span>':''}<div class="mute">${new Date(f.fecha).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})} · ${esc(f.mesa)} · ${esc(f.metodo)}${f.metodo==='Crédito'?' · '+esc(f.cliente):''}${f.cajero&&S.names[f.cajero]?' · '+esc(S.names[f.cajero]):''}</div></div><b>${L(f.totalPagar)}</b></div>`).join('')}</div>`:'<p class="mute">Todavía no hay facturas hoy.</p>'}</div>`;
+  <h3>Facturas</h3>
+  <div class="card">
+   <div class="row wrap" style="gap:6px;margin-bottom:8px">
+    <button class="chip ${S.cajaDia===hoy()?'on':''}" data-act="cajaDia" data-d="${hoy()}">Hoy</button>
+    <button class="chip ${S.cajaDia===ayer()?'on':''}" data-act="cajaDia" data-d="${ayer()}">Ayer</button>
+    <input type="date" id="cajaFecha" value="${esc(S.cajaDia)}" max="${hoy()}" style="width:auto;padding:6px 8px;font-size:14px">
+    <input id="buscaF" placeholder="Buscar número o cliente…" value="${esc(S.cajaBusca||'')}" style="flex:1;min-width:160px;padding:6px 10px;font-size:14px" autocomplete="off">
+   </div>
+   <div id="listaF">${listaFacturas()}</div>
+  </div>`;
+}
+function ayer(){const d=new Date();d.setDate(d.getDate()-1);return fdia(d)}
+function facturasDelDia(){return S.cajaDia===hoy()?S.facturasHoy:(S.cajaCache[S.cajaDia]||null)}
+function listaFacturas(){
+  const todas=facturasDelDia();
+  if(!todas){if(S.cargandoDia!==S.cajaDia){S.cargandoDia=S.cajaDia;setTimeout(()=>cargarDiaCaja(S.cajaDia),0)}return '<p class="mute">Cargando…</p>'}
+  const q=String(S.cajaBusca||'').trim().toLowerCase();
+  const fs=[...todas].filter(f=>!q||String(f.numero).toLowerCase().includes(q)||String(f.cliente||'').toLowerCase().includes(q)||String(f.mesa||'').toLowerCase().includes(q)).sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  pedirNombres(fs.map(f=>f.cajero));
+  const val=fs.filter(f=>!f.anulada);const tot=r2(val.reduce((a,f)=>a+Number(f.totalPagar||0),0));
+  const etiqueta=S.cajaDia===hoy()?'hoy':S.cajaDia===ayer()?'ayer':new Date(S.cajaDia+'T12:00').toLocaleDateString('es-HN',{weekday:'long',day:'numeric',month:'long'});
+  if(!fs.length)return `<p class="mute">${q?'No hay facturas que coincidan.':'No hay facturas '+esc(etiqueta)+'.'}</p>`;
+  return `<p class="mute" style="margin:0 0 6px">${val.length} factura(s) ${esc(etiqueta)} · total ${L(tot)}${fs.length>val.length?` · ${fs.length-val.length} anulada(s)`:''}</p>
+   <div class="list">${fs.map(f=>`<div class="it click" data-act="verF" data-id="${esc(f.id)}"><div class="sp"><b>${esc(f.numero)}</b> ${f.anulada?'<span class="pill bad">Anulada</span>':''}${f.metodo==='Crédito'&&!f.anulada?(f.creditoPendiente?'<span class="pill w">Crédito</span>':'<span class="pill ok">Crédito pagado</span>'):''}<div class="mute">${new Date(f.fecha).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})} · ${esc(f.mesa)} · ${esc(f.metodo)}${f.cliente&&f.cliente!=='Consumidor Final'?' · '+esc(f.cliente):''}${f.cajero&&S.names[f.cajero]?' · '+esc(S.names[f.cajero]):''}</div></div><b>${L(f.totalPagar)}</b></div>`).join('')}</div>`;
+}
+async function cargarDiaCaja(d){
+  S.cajaDia=d;if(d===hoy()){render();return}
+  if(!S.cajaCache[d])render();
+  try{const r=await S.db.collection('facturas').where('dia','==',d).get();S.cajaCache[d]=r.docs.map(x=>({id:x.id,...x.data()}))}catch(e){S.cajaCache[d]=[];toast('No se pudieron cargar las facturas: '+e.message)}
+  if(S.cajaDia===d){const el=$('#listaF');if(el)el.innerHTML=listaFacturas();else render()}
 }
 const pedidos=new Set();
 async function pedirNombres(ids){
@@ -842,7 +870,8 @@ document.addEventListener('click',async e=>{
     case 'descargarDb':{try{const r=await fetch('/api/descargarRespaldo',{headers:{'X-Token':API.token}});if(!r.ok)throw new Error('No se pudo descargar');const nombre=(r.headers.get('Content-Disposition')||'').match(/filename="([^"]+)"/);await localDl.save({filename:nombre?nombre[1]:'restaurante.db',data:await r.blob()})}catch(e){toast(e.message)}break}
     case 'exportar':{try{const r=await fetch('/api/exportar',{headers:{'X-Token':API.token}});if(!r.ok)throw new Error('No se pudo exportar');const t=await r.text();await localDl.save({filename:'respaldo_restaurante_'+hoy()+'.json',data:t})}catch(e){toast(e.message)}break}
     case 'salir':{try{await api('salir',{})}catch(e){}guardarToken('');location.reload();break}
-    case 'verF':{const f=S.facturasHoy.find(x=>x.id===id);if(f)verFactura(f);break}
+    case 'verF':{const f=(facturasDelDia()||[]).find(x=>x.id===id)||S.facturasHoy.find(x=>x.id===id);if(f)verFactura(f);break}
+    case 'cajaDia':cargarDiaCaja(b.dataset.d);break;
     case 'nuevoPlato':editarPlato(null);break;
     case 'editPlato':editarPlato(id);break;
     case 'nuevoIns':if(S.isAdmin)editarInsumo(null);break;
@@ -862,8 +891,8 @@ document.addEventListener('click',async e=>{
     case 'delMesa':{const m=S.mesas[id];if((m.items||[]).length){toast('La mesa tiene una orden abierta');break}if(!twoTap(b))break;try{await W('mesas/'+id,'delete')}catch(_){}break}
   }
 });
-document.addEventListener('input',e=>{if(e.target.id!=='buscar'&&$('#view').contains(e.target))S.dirty=true;if(e.target.id==='buscar'){S.q=e.target.value;const g=$('#gridPlatos');if(g)g.innerHTML=gridPlatos(Object.values(S.platos).filter(p=>p.activo!==false).sort((a,b)=>String(a.nombre).localeCompare(b.nombre)))}});
-document.addEventListener('change',e=>{if(e.target.id==='eqFactura'){S.dirty=false;const v=e.target.checked;api('equipo',{factura:v}).then(r=>{S.info.factura=r.factura;toast(v?'Esta computadora cobra y factura':'Esta computadora ya no factura');render()}).catch(er=>toast(er.message));return}if(e.target.id==='fRest2'){const f=e.target.files&&e.target.files[0];if(f){openModal(`<h2>¿Restaurar este respaldo?</h2><p>${esc(f.name)}</p><p>Todos los datos actuales de esta computadora se reemplazarán por los del respaldo. La base actual se guarda aparte.</p><div class="row"><span class="sp"></span><button class="btn" data-x="c">Cancelar</button><button class="btn p" data-x="o">Restaurar</button></div>`,sh=>{sh.querySelector('[data-x=c]').onclick=closeModal;sh.querySelector('[data-x=o]').onclick=()=>{closeModal();confirmarRestaurar=true;restaurarRespaldo(f,false)}})}e.target.value='';return}if(e.target.id==='logoFile'){subirLogo(e.target.files&&e.target.files[0]);return}
+document.addEventListener('input',e=>{if(e.target.id==='buscaF'){S.cajaBusca=e.target.value;const el=$('#listaF');if(el)el.innerHTML=listaFacturas();return}if(e.target.id!=='buscar'&&$('#view').contains(e.target))S.dirty=true;if(e.target.id==='buscar'){S.q=e.target.value;const g=$('#gridPlatos');if(g)g.innerHTML=gridPlatos(Object.values(S.platos).filter(p=>p.activo!==false).sort((a,b)=>String(a.nombre).localeCompare(b.nombre)))}});
+document.addEventListener('change',e=>{if(e.target.id==='cajaFecha'){S.dirty=false;if(e.target.value)cargarDiaCaja(e.target.value);return}if(e.target.id==='eqFactura'){S.dirty=false;const v=e.target.checked;api('equipo',{factura:v}).then(r=>{S.info.factura=r.factura;toast(v?'Esta computadora cobra y factura':'Esta computadora ya no factura');render()}).catch(er=>toast(er.message));return}if(e.target.id==='fRest2'){const f=e.target.files&&e.target.files[0];if(f){openModal(`<h2>¿Restaurar este respaldo?</h2><p>${esc(f.name)}</p><p>Todos los datos actuales de esta computadora se reemplazarán por los del respaldo. La base actual se guarda aparte.</p><div class="row"><span class="sp"></span><button class="btn" data-x="c">Cancelar</button><button class="btn p" data-x="o">Restaurar</button></div>`,sh=>{sh.querySelector('[data-x=c]').onclick=closeModal;sh.querySelector('[data-x=o]').onclick=()=>{closeModal();confirmarRestaurar=true;restaurarRespaldo(f,false)}})}e.target.value='';return}if(e.target.id==='logoFile'){subirLogo(e.target.files&&e.target.files[0]);return}
   if(e.target.id==='aLF'){S.dirty=false;W('config/negocio','update',{logoFactura:e.target.checked}).then(()=>toast('Guardado')).catch(()=>{});return}if(e.target.id==='esImp'){try{localStorage.setItem('rs_impresora',e.target.checked?'1':'0')}catch(_){}S.dirty=false;escucharImpresiones();vigilarComandas();toast(e.target.checked?'Este dispositivo imprimirá las facturas':'Este dispositivo ya no imprime');return}const m=e.target.dataset&&e.target.dataset.mesa;if(m){const v=e.target.value.trim();S.dirty=false;if(v&&S.mesas[m]&&v!==S.mesas[m].nombre)mutate('mesas',m,()=>({nombre:v})).catch(()=>{})}});
 
 /* ---------- arranque ---------- */
@@ -933,7 +962,7 @@ function iniciar(){
   setInterval(()=>{subHoy();if(S.tab==='mesas'&&!S.mesaAbierta)render()},60000);
   render();
 }
-S.usuarios=[];S.info={};
+S.usuarios=[];S.info={};S.cajaDia=hoy();S.cajaCache={};S.cajaBusca='';
 try{S.logoPropio=localStorage.getItem('rs_logo')||null}catch(e){}
 try{S.info.nombreNegocio=localStorage.getItem('rs_nombre')||''}catch(e){}
 render();
