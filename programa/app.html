@@ -384,16 +384,39 @@ function facturaTexto(f){
 function docImpresion(inner,titulo){return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${esc(titulo||'Impresión')}</title><style>
 @page{size:80mm 200mm;margin:0}
 html,body{margin:0;padding:0;background:#fff}
-body{width:72mm;margin:0 auto;padding:2mm 0 6mm;font-family:Consolas,"Courier New",monospace;color:#000;-webkit-print-color-adjust:exact}
-.inv{font-size:12px;line-height:1.35;font-weight:600;color:#000}
+body{width:72mm;margin:0 auto;padding:${ahorro()?'0.5mm 0 2mm':'2mm 0 6mm'};font-family:Consolas,"Courier New",monospace;color:#000;-webkit-print-color-adjust:exact}
+.inv{font-size:${ahorro()?'11.5px':'12px'};line-height:${ahorro()?'1.2':'1.35'};font-weight:600;color:#000}
 .inv *{color:#000!important}
 .inv table{width:100%;border-collapse:collapse}.inv td{padding:1px 0;vertical-align:top}
-.inv hr{border:0;border-top:1px dashed #000;margin:5px 0}.c{text-align:center}
+.inv hr{border:0;border-top:1px dashed #000;margin:${ahorro()?'2px':'5px'} 0}.c{text-align:center}.r{text-align:right;white-space:nowrap}
 pre{white-space:pre-wrap;margin:0;font:inherit}
 </style></head><body>${inner}<script>
-window.onload=function(){var h=Math.ceil(document.body.scrollHeight*25.4/96)+6;var st=document.createElement('style');st.textContent='@page{size:80mm '+Math.max(60,h)+'mm;margin:0}';document.head.appendChild(st);setTimeout(function(){window.print()},150)};
+window.onload=function(){var h=Math.ceil(document.body.scrollHeight*25.4/96)+(${ahorro()?2:6});var st=document.createElement('style');st.textContent='@page{size:80mm '+Math.max(60,h)+'mm;margin:0}';document.head.appendChild(st);setTimeout(function(){window.print()},150)};
 <\/script></body></html>`}
-function facturaDoc(f){return docImpresion(facturaHTML(f),'Factura '+f.numero)}
+const ahorro=()=>S.negocio.ahorroPapel!==false;
+function facturaDoc(f){return docImpresion(ahorro()?facturaCompacta(f):facturaHTML(f),'Factura '+f.numero)}
+function facturaCompacta(f){
+  const e=f.emisor||{};const fe=new Date(f.fecha);const n2=v=>(Number(v)||0).toLocaleString('es-HN',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fila=(a,b,neg)=>`<tr><td>${neg?'<b>'+a+'</b>':a}</td><td class="r">${neg?'<b>'+b+'</b>':b}</td></tr>`;
+  const fiscal=!!f.fiscal;
+  const totales=fiscal
+    ?`<table><tr><td>Exonerado</td><td class="r">${n2(0)}</td><td>&nbsp;Exento</td><td class="r">${n2(f.exento)}</td></tr><tr><td>Grav.15%</td><td class="r">${n2(f.gravado15)}</td><td>&nbsp;ISV 15%</td><td class="r">${n2(f.isv15)}</td></tr><tr><td>Grav.18%</td><td class="r">${n2(f.gravado18)}</td><td>&nbsp;ISV 18%</td><td class="r">${n2(f.isv18)}</td></tr></table>`
+    :`<table>${f.exento?fila('Exento',n2(f.exento)):''}${f.gravado15?fila('Gravado 15%',n2(f.gravado15))+fila('ISV 15%',n2(f.isv15)):''}${f.gravado18?fila('Gravado 18%',n2(f.gravado18))+fila('ISV 18%',n2(f.isv18)):''}</table>`;
+  return `<div class="inv">
+   ${S.negocio.logoFactura!==false?`<div class="c">${logoImg('width:20mm;display:block;margin:0 auto 1px')}</div>`:''}
+   <div class="c"><b style="font-size:13px">${esc(e.nombre||'Restaurante')}</b>${e.razon?`<br>${esc(e.razon)}`:''}<br>${esc([e.rtn&&'RTN '+e.rtn,e.telefono&&'Tel '+e.telefono].filter(Boolean).join(' · '))}${e.direccion?`<br>${esc(e.direccion)}`:''}</div><hr>
+   <div class="c"><b>${fiscal?'FACTURA':'COMPROBANTE'} ${esc(f.numero)}</b>${fiscal?`<br>CAI ${esc(e.cai)}`:''}${f.anulada?'<br><b>*** ANULADA ***</b>':''}</div>
+   ${fe.toLocaleDateString('es-HN')} ${fe.toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})} · ${esc(f.mesa)}
+   ${f.cliente&&f.cliente!=='Consumidor Final'||f.rtn?`<br>Cliente: ${esc(f.cliente)}${f.rtn?' · RTN '+esc(f.rtn):''}`:''}
+   ${f.metodo==='Crédito'?`<br><b>CRÉDITO ${esc(f.plazo)} días · vence ${esc(fechaCorta(f.vence))}</b>`:''}<hr>
+   <table>${(f.items||[]).map(it=>`<tr><td>${it.cant}x ${esc(it.nombre)}${Number(it.tasa)===18?'*':Number(it.tasa)===0?'(E)':''}${it.nota?` <span style="font-weight:400">(${esc(it.nota)})</span>`:''}</td><td class="r">${n2(it.precio*it.cant)}</td></tr>`).join('')}</table><hr>
+   ${totales}
+   <table>${f.servicio?fila('Servicio '+f.servicioPct+'%',n2(f.servicio)):''}${fila('TOTAL L',n2(f.totalPagar),true)}
+   ${f.metodo==='Crédito'?fila('Saldo pendiente',n2(f.saldo)):`<tr><td colspan="2">${esc(f.metodo)} ${n2(f.recibido)}${f.metodo==='Efectivo'&&f.cambio?' · Cambio '+n2(f.cambio):''}</td></tr>`}</table>
+   ${f.metodo==='Crédito'?'<div style="margin-top:10px">Firma: ____________________</div>':''}
+   ${fiscal?`<hr><div style="font-size:10px">Rango: ${esc(e.prefijo)}${esc(String(e.rangoDesde).padStart(8,'0'))} al ${esc(e.prefijo)}${esc(String(e.rangoHasta).padStart(8,'0'))}<br>Fecha límite emisión: ${esc(e.fechaLimite||'—')} · Original: cliente / Copia: emisor</div>`:''}
+   <hr><div class="c" style="font-size:10px">${e.leyenda?esc(e.leyenda)+' · ':''}¡Gracias por su visita!</div></div>`;
+}
 function reciboDoc(texto){return docImpresion('<div class="inv">'+(S.negocio.logoFactura!==false?'<div class="c">'+logoImg('width:30mm;display:block;margin:0 auto 4px')+'</div>':'')+'<pre>'+esc(texto)+'</pre></div>','Recibo')}
 /* ---------- impresión ---------- */
 const esImpresora=()=>{try{const v=localStorage.getItem('rs_impresora');if(v===null)return ['localhost','127.0.0.1'].includes(location.hostname)&&S.info.factura!==false;return v==='1'}catch(e){return false}};
@@ -425,6 +448,11 @@ function estadoCocina(m,it){if(S.negocio.comandas===false||it.cocina===false)ret
   if(c>=it.cant&&(e.nota||'')===(it.nota||''))return '<span class="pill ok" style="margin-top:4px">🍳 En cocina</span>';
   return `<span class="pill w" style="margin-top:4px">⏳ ${c?'Falta enviar '+(it.cant-c):'Por enviar'}</span>`}
 function comandaHTML(c){
+  if(ahorro()){const h=new Date(c.hora);
+    return `<div class="inv"><div class="c"><b style="font-size:20px">${esc(c.mesa)}</b>${c.cliente?` <b style="font-size:14px">· ${esc(c.cliente)}</b>`:''}<br>#${esc(c.numero)} · ${h.toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})} · ${esc(c.mesero||'')}</div><hr>
+     ${c.lineas.map(l=>l.cambioNota?`<div style="font-size:14px">CAMBIO ${esc(l.nombre)} → ${esc(l.nota||'(sin nota)')}</div>`
+       :l.cant<0?`<div style="font-size:15px;font-weight:800">** ANULAR ${-l.cant} x ${esc(l.nombre)} **</div>`
+       :`<div style="font-size:16px;font-weight:800;margin:1px 0">${l.cant} x ${esc(l.nombre)}${l.nota?`<span style="font-size:13px"> → ${esc(l.nota)}</span>`:''}</div>`).join('')}</div>`}
   const h=new Date(c.hora);
   return `<div class="inv"><div class="c" style="font-size:14px">COMANDA #${esc(c.numero)}</div>
    <div class="c" style="font-size:26px;font-weight:800;margin:4px 0">${esc(c.mesa)}</div>
@@ -756,6 +784,7 @@ function vAjustes(){
   </div>
   <h3>Logo</h3><div class="card"><div class="row wrap" style="gap:14px">${logoImg('width:110px;height:110px;object-fit:contain;border:1px solid var(--line);border-radius:12px;padding:6px;background:#fff')}
    <div class="sp">${S.isAdmin?`<label class="btn" style="display:inline-block;margin:0 6px 6px 0">Cambiar logo<input type="file" id="logoFile" accept="image/*" style="display:none"></label>${S.logoPropio?'<button class="btn d" data-act="logoQuitar">Usar el original</button>':''}`:''}
+   <label class="check"><input type="checkbox" id="aAP" ${S.negocio.ahorroPapel!==false?'checked':''} ${S.isAdmin?'':'disabled'}> Ahorro de papel: facturas y comandas compactas</label>
    <label class="check"><input type="checkbox" id="aLF" ${S.negocio.logoFactura!==false?'checked':''} ${S.isAdmin?'':'disabled'}> Imprimir el logo en facturas y recibos</label>
    <p class="mute">Para impresoras térmicas el logo se convierte a blanco y negro.</p></div></div></div>
   <h3>Impresora</h3><div class="card">
@@ -893,6 +922,7 @@ document.addEventListener('click',async e=>{
 });
 document.addEventListener('input',e=>{if(e.target.id==='buscaF'){S.cajaBusca=e.target.value;const el=$('#listaF');if(el)el.innerHTML=listaFacturas();return}if(e.target.id!=='buscar'&&$('#view').contains(e.target))S.dirty=true;if(e.target.id==='buscar'){S.q=e.target.value;const g=$('#gridPlatos');if(g)g.innerHTML=gridPlatos(Object.values(S.platos).filter(p=>p.activo!==false).sort((a,b)=>String(a.nombre).localeCompare(b.nombre)))}});
 document.addEventListener('change',e=>{if(e.target.id==='cajaFecha'){S.dirty=false;if(e.target.value)cargarDiaCaja(e.target.value);return}if(e.target.id==='eqFactura'){S.dirty=false;const v=e.target.checked;api('equipo',{factura:v}).then(r=>{S.info.factura=r.factura;toast(v?'Esta computadora cobra y factura':'Esta computadora ya no factura');render()}).catch(er=>toast(er.message));return}if(e.target.id==='fRest2'){const f=e.target.files&&e.target.files[0];if(f){openModal(`<h2>¿Restaurar este respaldo?</h2><p>${esc(f.name)}</p><p>Todos los datos actuales de esta computadora se reemplazarán por los del respaldo. La base actual se guarda aparte.</p><div class="row"><span class="sp"></span><button class="btn" data-x="c">Cancelar</button><button class="btn p" data-x="o">Restaurar</button></div>`,sh=>{sh.querySelector('[data-x=c]').onclick=closeModal;sh.querySelector('[data-x=o]').onclick=()=>{closeModal();confirmarRestaurar=true;restaurarRespaldo(f,false)}})}e.target.value='';return}if(e.target.id==='logoFile'){subirLogo(e.target.files&&e.target.files[0]);return}
+  if(e.target.id==='aAP'){S.dirty=false;W('config/negocio','update',{ahorroPapel:e.target.checked}).then(()=>toast(e.target.checked?'Ahorro de papel activado':'Formato normal de impresión')).catch(()=>{});return}
   if(e.target.id==='aLF'){S.dirty=false;W('config/negocio','update',{logoFactura:e.target.checked}).then(()=>toast('Guardado')).catch(()=>{});return}if(e.target.id==='esImp'){try{localStorage.setItem('rs_impresora',e.target.checked?'1':'0')}catch(_){}S.dirty=false;escucharImpresiones();vigilarComandas();toast(e.target.checked?'Este dispositivo imprimirá las facturas':'Este dispositivo ya no imprime');return}const m=e.target.dataset&&e.target.dataset.mesa;if(m){const v=e.target.value.trim();S.dirty=false;if(v&&S.mesas[m]&&v!==S.mesas[m].nombre)mutate('mesas',m,()=>({nombre:v})).catch(()=>{})}});
 
 /* ---------- arranque ---------- */
