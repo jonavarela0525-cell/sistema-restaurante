@@ -3,6 +3,8 @@
  * Sistema del Restaurante - servidor local
  * Funciona sin internet. Guarda todo en datos/restaurante.db (SQLite)
  * y hace respaldos automaticos en la carpeta respaldos/.
+ * Con internet, se sincroniza con las otras computadoras del restaurante
+ * a través de un repositorio PRIVADO de GitHub (cada computadora sube sus cambios).
  * Requiere Node.js 22.13 o superior (https://nodejs.org).
  */
 const http = require('http');
@@ -13,7 +15,7 @@ const crypto = require('crypto');
 process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 
-const VERSION = '1.6.1';
+const VERSION = '2.0.0';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante'; // usuario/repositorio en GitHub
 const BASE = __dirname;
 const DATA_DIR = path.join(BASE, 'datos');
@@ -22,10 +24,16 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(BK_DIR, { recursive: true });
 
 const CFG_FILE = path.join(BASE, 'config.json');
-let CFG = { puerto: 8080, carpetaRespaldoExtra: '', respaldosAGuardar: 60, horasEntreRespaldos: 2, actualizacionesAutomaticas: true, repoActualizaciones: '' };
-try { Object.assign(CFG, JSON.parse(fs.readFileSync(CFG_FILE, 'utf8'))); } catch (e) {
-  try { fs.writeFileSync(CFG_FILE, JSON.stringify(CFG, null, 2)); } catch (_) {}
-}
+let CFG = { puerto: 8080, carpetaRespaldoExtra: '', respaldosAGuardar: 60, horasEntreRespaldos: 2, actualizacionesAutomaticas: true, repoActualizaciones: '',
+  equipo: '', equipoId: '', facturaEnEsteEquipo: true, sync: { repo: '', token: '' } };
+try { Object.assign(CFG, JSON.parse(fs.readFileSync(CFG_FILE, 'utf8'))); } catch (e) {}
+if (!CFG.sync || typeof CFG.sync !== 'object') CFG.sync = { repo: '', token: '' };
+if (!CFG.equipo) CFG.equipo = os.hostname() || 'Computadora';
+// identificador único de esta computadora (vive en config.json, no en la base: así un respaldo restaurado no lo copia)
+if (!/^d[0-9a-f]{10}$/.test(String(CFG.equipoId || ''))) CFG.equipoId = 'd' + crypto.randomBytes(5).toString('hex');
+function guardarCfg() { try { fs.writeFileSync(CFG_FILE, JSON.stringify(CFG, null, 2)); } catch (e) { console.log('No se pudo guardar config.json: ' + e.message); } }
+guardarCfg();
+const DEV = CFG.equipoId;
 
 const LOG_FILE = path.join(DATA_DIR, 'registro.log');
 function log(...a) {
@@ -57,6 +65,11 @@ CREATE TABLE IF NOT EXISTS docs(path TEXT PRIMARY KEY, col TEXT NOT NULL, data T
 CREATE INDEX IF NOT EXISTS ix_docs_col ON docs(col);
 CREATE INDEX IF NOT EXISTS ix_docs_dia ON docs(col, json_extract(data,'$.dia'));
 CREATE TABLE IF NOT EXISTS sesiones(token TEXT PRIMARY KEY, uid TEXT NOT NULL, creada INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS ops(id TEXT PRIMARY KEY, dev TEXT NOT NULL, seq INTEGER NOT NULL, ts INTEGER NOT NULL, path TEXT NOT NULL, op TEXT NOT NULL, data TEXT, dia TEXT NOT NULL, subido INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS ix_ops_path ON ops(path, ts, dev, seq);
+CREATE INDEX IF NOT EXISTS ix_ops_subir ON ops(dev, subido, dia);
+CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS archivos(path TEXT PRIMARY KEY, sha TEXT NOT NULL);
 `);
 const st = {
   get: db.prepare('SELECT data FROM docs WHERE path=?'),
@@ -68,7 +81,17 @@ const st = {
   sesAdd: db.prepare('INSERT INTO sesiones(token,uid,creada) VALUES(?,?,?)'),
   sesDel: db.prepare('DELETE FROM sesiones WHERE token=?'),
   sesDelUid: db.prepare('DELETE FROM sesiones WHERE uid=?'),
+  metaGet: db.prepare('SELECT v FROM meta WHERE k=?'),
+  metaSet: db.prepare('INSERT INTO meta(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v'),
+  metaDel: db.prepare('DELETE FROM meta WHERE k=?'),
+  opAdd: db.prepare('INSERT OR IGNORE INTO ops(id,dev,seq,ts,path,op,data,dia,subido) VALUES(?,?,?,?,?,?,?,?,?)'),
+  opsPath: db.prepare('SELECT op,data FROM ops WHERE path=? ORDER BY ts,dev,seq'),
+  opsDespues: db.prepare('SELECT 1 FROM ops WHERE path=? AND (ts>? OR (ts=? AND (dev>? OR (dev=? AND seq>?)))) LIMIT 1'),
+  archGet: db.prepare('SELECT sha FROM archivos WHERE path=?'),
+  archSet: db.prepare('INSERT INTO archivos(path,sha) VALUES(?,?) ON CONFLICT(path) DO UPDATE SET sha=excluded.sha'),
 };
+const meta = (k, d) => { const r = st.metaGet.get(k); return r ? r.v : d; };
+const setMeta = (k, v) => st.metaSet.run(k, String(v));
 function tx(fn) {
   db.exec('BEGIN IMMEDIATE');
   try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { try { db.exec('ROLLBACK'); } catch (_) {} throw e; }
@@ -84,7 +107,7 @@ function parsePath(p, wantDoc) {
 }
 const colOf = p => p.split('/').slice(0, -1).join('/');
 function readDoc(p) { const r = st.get.get(p); return r ? JSON.parse(r.data) : null; }
-function writeDoc(p, data) { st.put.run(p, colOf(p), JSON.stringify(data), Date.now()); }
+function writeDoc(p, data) { st.put.run(p, colOf(p), JSON.stringify(data), Date.now()); } // solo para datos locales (impresiones)
 function err(code, msg) { const e = new Error(msg); e.status = code; return e; }
 function isObj(o) { return o && typeof o === 'object' && !Array.isArray(o); }
 function deepMerge(a, b) {
@@ -92,6 +115,57 @@ function deepMerge(a, b) {
   for (const [k, v] of Object.entries(b)) out[k] = isObj(v) && isObj(out[k]) ? deepMerge(out[k], v) : v;
   return out;
 }
+const r2 = n => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+const r3 = n => Math.round((Number(n) + Number.EPSILON) * 1000) / 1000;
+function diaLocal(ts) { const d = new Date(ts); const z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; }
+
+/* ------------- registro de cambios (para sincronizar) -------------
+ * Cada escritura es una operación (set / update / delete) con fecha, equipo y número.
+ * Todas las computadoras aplican las mismas operaciones en el mismo orden, así
+ * llegan al mismo resultado aunque hayan trabajado sin internet al mismo tiempo.
+ * El inventario se guarda como movimientos con nombre propio (movs) y los abonos
+ * de crédito como un mapa (abonos): por eso nunca se pisan entre computadoras. */
+const LOCALES = new Set(['impresiones']); // no se sincronizan
+const esLocal = p => LOCALES.has(p.split('/')[0]);
+function derivar(p, d) {
+  if (!d) return d;
+  const top = p.split('/')[0];
+  if (top === 'mesas' && d.enviados === null) d.enviados = {};
+  if (top === 'insumos') {
+    if (isObj(d.movs)) d.stock = r3(Object.values(d.movs).reduce((a, v) => a + (Number(v) || 0), 0));
+  }
+  if (top === 'facturas' && d.metodo === 'Crédito') {
+    const pagado = r2(Object.values(isObj(d.abonos) ? d.abonos : {}).reduce((a, v) => a + (Number(v) || 0), 0));
+    d.saldo = d.anulada ? 0 : Math.max(0, r2(Number(d.totalPagar || 0) - pagado));
+    d.creditoPendiente = !d.anulada && d.saldo > 0.004;
+  }
+  return d;
+}
+function aplicar(cur, op, data) {
+  if (op === 'set') return data ? JSON.parse(JSON.stringify(data)) : null;
+  if (op === 'update') return cur ? deepMerge(cur, data) : null; // actualizar algo que no existe: se ignora
+  return null; // delete
+}
+function guardarDoc(p, d) { d = derivar(p, d); if (d) st.put.run(p, colOf(p), JSON.stringify(d), Date.now()); else st.del.run(p); }
+function reconstruir(p) {
+  let d = null;
+  for (const o of st.opsPath.all(p)) d = aplicar(d, o.op, o.data ? JSON.parse(o.data) : null);
+  guardarDoc(p, d);
+}
+let SEQ = Math.max(Number(meta('seq:' + DEV, '0')) || 0, Number((db.prepare('SELECT MAX(seq) m FROM ops WHERE dev=?').get(DEV) || {}).m) || 0);
+function escribirLocal(op, p, data) {
+  // debe llamarse dentro de tx()
+  if (esLocal(p)) { if (op === 'delete') st.del.run(p); else writeDoc(p, op === 'update' ? deepMerge(readDoc(p) || {}, data) : data); return; }
+  SEQ += 1; setMeta('seq:' + DEV, SEQ);
+  let ts = Date.now();
+  const ult = Number(meta('ultimoTs', '0')); if (ts <= ult) ts = ult + 1; setMeta('ultimoTs', ts);
+  const json = op === 'delete' ? null : JSON.stringify(data);
+  st.opAdd.run(DEV + ':' + SEQ, DEV, SEQ, ts, p, op, json, diaLocal(ts), 0);
+  if (st.opsDespues.get(p, ts, ts, DEV, DEV, SEQ)) reconstruir(p);
+  else guardarDoc(p, aplicar(readDoc(p), op, data));
+  pedirSync(3000);
+}
+const movKey = pref => pref + DEV.slice(1, 6) + Date.now().toString(36) + crypto.randomBytes(2).toString('hex');
 
 /* ---------------- usuarios ---------------- */
 function normUsuario(u) { return String(u || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '').toLowerCase().replace(/[^a-z0-9._-]/g, ''); }
@@ -126,6 +200,7 @@ function checkRead(u, p) {
 function checkWrite(u, op, p, data, existe) {
   const top = p.split('/')[0];
   if (top === 'usuarios' || top === 'sesiones') throw err(403, 'No permitido');
+  if (top === 'facturas' && op === 'update' && data && ('saldo' in data || 'creditoPendiente' in data)) throw err(400, 'El saldo se calcula solo con los abonos');
   if (isAdmin(u)) return;
   const NO = () => { throw err(403, 'Solo el administrador puede hacer este cambio'); };
   switch (top) {
@@ -135,7 +210,7 @@ function checkWrite(u, op, p, data, existe) {
     case 'mesas': if (op !== 'update' || !soloClaves(data, ['items', 'abiertaEn', 'mesero', 'enviados'])) NO(); break;
     case 'facturas':
       if (op === 'set' && !existe) return;
-      if (op === 'update' && soloClaves(data, ['saldo', 'creditoPendiente', 'pagadoEn'])) return;
+      if (op === 'update' && existe && soloClaves(data, ['abonos']) && isObj(data.abonos) && Object.values(data.abonos).every(v => Number(v) > 0)) return;
       NO(); break;
     case 'abonos': case 'impresiones': if (op === 'set' && !existe) return; NO(); break;
     default: NO();
@@ -195,15 +270,58 @@ function respaldo(motivo) {
   } catch (e) { log('ERROR al respaldar:', e.message); return null; }
 }
 
+/* ---------------- migración v1 -> v2 (registro de cambios) ----------------
+ * Convierte los datos existentes al formato que se puede sincronizar:
+ * existencias -> movimientos, saldos de crédito -> abonos, correlativos -> por computadora. */
+function prepararDoc(p, d, claveStock) {
+  const top = p.split('/')[0];
+  d = JSON.parse(JSON.stringify(d));
+  if (top === 'insumos' && !isObj(d.movs)) { const s = Number(d.stock) || 0; d.movs = s ? { [claveStock]: r3(s) } : {}; }
+  if (top === 'insumos') delete d.stock;
+  if (top === 'facturas' && d.metodo === 'Crédito' && !isObj(d.abonos)) {
+    const ab = {};
+    for (const r of st.col.all('abonos')) { const a = JSON.parse(r.data); if (a.facturaId === p.split('/')[1]) ab[r.path.split('/')[1]] = r2(a.monto); }
+    const sum = Object.values(ab).reduce((x, v) => x + v, 0);
+    const falta = r2(Number(d.totalPagar || 0) - Number(d.saldo ?? d.totalPagar) - sum); // pagos sin registro de abono
+    if (falta > 0.004 && !d.anulada) ab['previo'] = falta;
+    d.abonos = ab;
+  }
+  if (top === 'facturas') { delete d.saldo; delete d.creditoPendiente; }
+  return d;
+}
+function migrarV2() {
+  if (meta('migradoV2')) return;
+  const hayOps = db.prepare('SELECT 1 FROM ops LIMIT 1').get();
+  const docs = db.prepare("SELECT path,data FROM docs WHERE col NOT IN ('impresiones') ORDER BY path").all();
+  tx(() => {
+    if (!hayOps && docs.length) {
+      const cor = readDoc('config/correlativo') || {};
+      if (cor.siguienteInterno) setMeta('cor:int', cor.siguienteInterno);
+      if (cor.siguiente && cor.cai) setMeta('cor:cai:' + cor.cai, cor.siguiente);
+      const com = readDoc('config/comandas'); if (com) setMeta('comandas', JSON.stringify(com));
+      for (const r of docs) {
+        if (r.path === 'config/correlativo' || r.path === 'config/comandas') { st.del.run(r.path); continue; }
+        escribirLocal('set', r.path, prepararDoc(r.path, JSON.parse(r.data), 'ini' + DEV.slice(1, 6)));
+      }
+      log('Datos convertidos al formato sincronizable:', docs.length, 'documentos');
+    }
+    setMeta('migradoV2', new Date().toISOString());
+  });
+}
+
 /* ---------------- importación inicial ---------------- */
 function importarSiVacia() {
   const f = path.join(BASE, 'importar.json');
   if (!fs.existsSync(f)) return;
   const n = st.count.get().n;
-  if (n > 0) return;
+  if (n > 0 || db.prepare('SELECT 1 FROM ops LIMIT 1').get() || CFG.sync.repo) return;
   try {
     const data = JSON.parse(fs.readFileSync(f, 'utf8'));
-    tx(() => { for (const [p, d] of Object.entries(data.docs || {})) { parsePath(p, true); writeDoc(p, d); } });
+    tx(() => { for (const [p, d] of Object.entries(data.docs || {})) {
+      parsePath(p, true);
+      if (p === 'config/correlativo') { if (d.siguienteInterno) setMeta('cor:int', d.siguienteInterno); continue; }
+      escribirLocal('set', p, prepararDoc(p, d, 'imp'));
+    } });
     fs.renameSync(f, path.join(BASE, 'importar_hecho_' + stamp() + '.json'));
     log('Datos importados:', Object.keys(data.docs || {}).length, 'documentos');
   } catch (e) { log('ERROR al importar:', e.message); }
@@ -240,7 +358,15 @@ async function api(req, res, url) {
   if (route === 'estado') {
     const hayUsuarios = usuarios().length > 0;
     const u = sessionUser(req);
-    return send(res, 200, { version: VERSION, hayUsuarios, yo: u ? publicUser(u) : null, ips: ips(), puerto: CFG.puerto, ahora: Date.now() });
+    return send(res, 200, { version: VERSION, hayUsuarios, yo: u ? publicUser(u) : null, ips: ips(), puerto: CFG.puerto, ahora: Date.now(),
+      equipo: CFG.equipo, factura: CFG.facturaEnEsteEquipo !== false, uniendo: !!meta('uniendo'), sync: estadoSync() });
+  }
+  // primer arranque: enlazar con la computadora del restaurante antes de crear usuarios
+  if (route === 'enlazar' && req.method === 'POST') {
+    if (usuarios().length) throw err(400, 'Esta computadora ya tiene usuarios. Enlázala desde Ajustes.');
+    const b = await body(req);
+    await configurarSync(b.repo, b.token, 'unirse');
+    return send(res, 200, { ok: true, usuarios: usuarios().length });
   }
   if (route === 'restaurar' && req.method === 'POST') {
     const sinUsuarios = usuarios().length === 0;
@@ -269,10 +395,11 @@ async function api(req, res, url) {
     const b = await body(req);
     return tx(() => {
       if (usuarios().length) throw err(400, 'El sistema ya está configurado');
+      if (meta('uniendo')) throw err(400, 'Esta computadora está descargando los datos del restaurante. Espera un momento.');
       const nombre = String(b.nombre || '').trim(), usuario = normUsuario(b.usuario), pin = String(b.pin || '').trim();
       validar(nombre, usuario, pin, true);
       const id = crypto.randomUUID().slice(0, 12), salt = crypto.randomBytes(16).toString('hex');
-      writeDoc('usuarios/' + id, { nombre, usuario, rol: 'admin', activo: true, salt, pinHash: hashPin(pin, salt), creado: new Date().toISOString() });
+      escribirLocal('set', 'usuarios/' + id, { nombre, usuario, rol: 'admin', activo: true, salt, pinHash: hashPin(pin, salt), creado: new Date().toISOString() });
       const token = crypto.randomBytes(24).toString('hex'); st.sesAdd.run(token, id, Date.now());
       log('Administrador creado:', usuario);
       send(res, 200, { token, yo: { id, nombre, usuario, rol: 'admin', activo: true } });
@@ -323,7 +450,7 @@ async function api(req, res, url) {
       delete doc.id;
       if (b.pin) { b.pin = String(b.pin).trim(); doc.salt = crypto.randomBytes(16).toString('hex'); doc.pinHash = hashPin(b.pin, doc.salt); }
       if (!prev) doc.creado = new Date().toISOString();
-      writeDoc('usuarios/' + id, doc);
+      escribirLocal('set', 'usuarios/' + id, doc);
       if (!activo || b.pin) st.sesDelUid.run(id);
       log('Usuario guardado por', u.usuario + ':', usuario, rol, activo ? 'activo' : 'inactivo');
       send(res, 200, { ok: true, id });
@@ -346,15 +473,18 @@ async function api(req, res, url) {
       const r = tx(() => {
         const cur = readDoc(b.path);
         checkWrite(u, op, b.path, b.data, !!cur);
-        if (op === 'set') writeDoc(b.path, b.data);
-        else if (op === 'update') {
-          if (!cur) throw err(400, 'El documento no existe');
-          const nuevo = deepMerge(cur, b.data);
-          if (b.path.startsWith('mesas/') && 'enviados' in b.data && b.data.enviados === null) nuevo.enviados = {};
-          if (b.path.startsWith('mesas/') && 'items' in b.data) nuevo.ultimoCambio = Date.now();
-          writeDoc(b.path, nuevo);
+        const top = b.path.split('/')[0];
+        let o = op, data = b.data;
+        if (o === 'update' && !cur) throw err(400, 'El documento no existe');
+        if (top === 'insumos' && o !== 'delete') {
+          // la existencia se guarda como movimientos: un ajuste es la diferencia con lo que hay
+          data = { ...data }; const quiere = 'stock' in data ? r3(Number(data.stock) || 0) : null; delete data.stock; delete data.movs;
+          if (cur) { o = 'update'; if (quiere !== null) { const d = r3(quiere - Number(cur.stock || 0)); data.movs = d ? { [movKey('a')]: d } : {}; } }
+          else { o = 'set'; data.movs = quiere ? { [movKey('a')]: quiere } : {}; }
         }
-        else st.del.run(b.path);
+        if (top === 'facturas' && o === 'set' && data && data.metodo === 'Crédito' && !isObj(data.abonos)) { data = { ...data, abonos: {} }; delete data.saldo; delete data.creditoPendiente; }
+        if (top === 'mesas' && o === 'update' && 'items' in data) data = { ...data, ultimoCambio: Date.now() };
+        escribirLocal(o, b.path, data);
         return true;
       });
       ultimaEscritura = Date.now();
@@ -373,11 +503,11 @@ async function api(req, res, url) {
       for (const m of movs) {
         const p = 'insumos/' + m.id; parsePath(p, true);
         const cur = readDoc(p); if (!cur) continue;
-        const d = Number(m.delta); if (!isFinite(d)) throw err(400, 'Cantidad inválida');
+        const d = r3(Number(m.delta)); if (!isFinite(d) || !d) continue;
         if (!isAdmin(u) && d > 0) throw err(403, 'No permitido');
-        const upd = { ...cur, stock: Math.round((Number(cur.stock || 0) + d) * 1000) / 1000 };
+        const upd = { movs: { [movKey(b.motivo === 'venta' ? 'v' : b.motivo === 'anulacion' ? 'n' : 'e')]: d } };
         if (isAdmin(u) && m.costo != null && isFinite(Number(m.costo))) upd.costo = Number(m.costo);
-        writeDoc(p, upd);
+        escribirLocal('update', p, upd);
       }
     });
     emitir(['insumos']);
@@ -385,25 +515,28 @@ async function api(req, res, url) {
   }
   if (route === 'siguiente' && req.method === 'POST') {
     const b = await body(req);
+    if (CFG.facturaEnEsteEquipo === false) throw err(403, 'Esta computadora no emite facturas. Cobra desde la computadora de la caja.');
     const n = tx(() => {
       const neg = readDoc('config/negocio') || {};
-      const cor = readDoc('config/correlativo') || {};
       const conCAI = !!(neg.cai && neg.rangoDesde && neg.rangoHasta);
       if (b.fiscal !== conCAI) throw err(409, 'Los datos de facturación cambiaron. Intenta de nuevo.');
+      // nunca repetir un número que ya exista (también los que llegaron de otra computadora)
+      const maxUsado = conCAI
+        ? db.prepare("SELECT MAX(json_extract(data,'$.nro')) m FROM docs WHERE col='facturas' AND json_extract(data,'$.fiscal')=1 AND json_extract(data,'$.emisor.cai')=?").get(neg.cai)
+        : db.prepare("SELECT MAX(json_extract(data,'$.nro')) m FROM docs WHERE col='facturas' AND (json_extract(data,'$.fiscal')=0 OR json_extract(data,'$.fiscal') IS NULL)").get();
+      const usado = Number(maxUsado && maxUsado.m) || 0;
       let next;
       if (conCAI) {
         const desde = Math.floor(Number(neg.rangoDesde)), hasta = Math.floor(Number(neg.rangoHasta));
-        next = Math.floor(Number(cor.siguiente)) || 0;
-        if (!next || next < desde || cor.cai !== neg.cai) next = desde;
+        next = Math.max(desde, Number(meta('cor:cai:' + neg.cai, '0')) || 0, usado + 1);
         if (next > hasta) throw err(400, 'Se agotó el rango autorizado. Solicita un nuevo CAI al SAR y actualízalo en Ajustes.');
-        writeDoc('config/correlativo', { ...cor, siguiente: next + 1, cai: neg.cai });
+        setMeta('cor:cai:' + neg.cai, next + 1);
       } else {
-        next = Math.floor(Number(cor.siguienteInterno)) || 1;
-        writeDoc('config/correlativo', { ...cor, siguienteInterno: next + 1 });
+        next = Math.max(1, Number(meta('cor:int', '0')) || 0, usado + 1);
+        setMeta('cor:int', next + 1);
       }
       return next;
     });
-    emitir(['config']);
     return send(res, 200, { numero: n });
   }
   if (route === 'comanda' && req.method === 'POST') {
@@ -422,17 +555,18 @@ async function api(req, res, url) {
         nuevoEnv[it.k] = { c: Number(it.cant), n: it.nombre, nota: it.nota || '' };
       }
       for (const [k, v] of Object.entries(env)) if (!vistos.has(k) && v && v.c > 0) lineas.push({ nombre: v.n, cant: -v.c, nota: '' });
-      if (!lineas.length) { if (JSON.stringify(env) !== JSON.stringify(nuevoEnv)) writeDoc(p, { ...m, enviados: nuevoEnv }); return null; }
-      writeDoc(p, { ...m, enviados: nuevoEnv });
+      if (!lineas.length) { if (JSON.stringify(env) !== JSON.stringify(nuevoEnv)) escribirLocal('set', p, { ...m, enviados: nuevoEnv }); return null; }
+      escribirLocal('set', p, { ...m, enviados: nuevoEnv });
       const ahora = new Date(); const z = n => String(n).padStart(2, '0'); const dia = `${ahora.getFullYear()}-${z(ahora.getMonth() + 1)}-${z(ahora.getDate())}`;
-      const cont = readDoc('config/comandas') || {}; const numero = cont.dia === dia ? (cont.n || 0) + 1 : 1;
-      writeDoc('config/comandas', { dia, n: numero });
+      let cont = {}; try { cont = JSON.parse(meta('comandas', '{}')); } catch (_) {}
+      const numero = cont.dia === dia ? (cont.n || 0) + 1 : 1;
+      setMeta('comandas', JSON.stringify({ dia, n: numero }));
       const mu = m.mesero ? readDoc('usuarios/' + m.mesero) : null;
       const comanda = { numero, mesa: m.nombre, mesero: (mu && mu.nombre) || u.nombre, hora: ahora.toISOString(), lineas };
       writeDoc('impresiones/' + crypto.randomUUID().slice(0, 16), { tipo: 'comanda', comanda, estado: 'pendiente', creado: ahora.toISOString(), por: u.id });
       return comanda;
     });
-    emitir(['mesas', 'impresiones', 'config']);
+    emitir(['mesas', 'impresiones']);
     return send(res, 200, { ok: !!r, comanda: r });
   }
   if (route === 'tomarImpresion' && req.method === 'POST') {
@@ -445,6 +579,24 @@ async function api(req, res, url) {
     });
     emitir(['impresiones']);
     return send(res, 200, { ok });
+  }
+  if (route === 'sync') {
+    if (req.method === 'POST') {
+      if (!isAdmin(u)) throw err(403, 'Solo el administrador');
+      const b = await body(req);
+      if (b.accion === 'configurar') await configurarSync(b.repo, b.token, b.modo === 'unirse' ? 'unirse' : 'principal');
+      else if (b.accion === 'quitar') { CFG.sync = { repo: '', token: '' }; guardarCfg(); SYNC.estado = 'sin configurar'; SYNC.error = null; log('Sincronización desactivada'); }
+      else if (b.accion === 'ahora') await sincronizar();
+    }
+    return send(res, 200, estadoSync());
+  }
+  if (route === 'equipo' && req.method === 'POST') {
+    if (!isAdmin(u)) throw err(403, 'Solo el administrador');
+    const b = await body(req);
+    if (b.equipo !== undefined) { const n = String(b.equipo).trim().slice(0, 40); if (n) CFG.equipo = n; }
+    if (b.factura !== undefined) CFG.facturaEnEsteEquipo = !!b.factura;
+    guardarCfg(); emitir(['__estado']);
+    return send(res, 200, { ok: true, equipo: CFG.equipo, factura: CFG.facturaEnEsteEquipo });
   }
   if (route === 'actualizacion') {
     if (!isAdmin(u)) throw err(403, 'Solo el administrador');
@@ -574,6 +726,157 @@ function aplicarActualizacion(forzar) {
   } catch (e) { UPD.estado = 'error'; UPD.error = 'No se pudo instalar: ' + e.message; log(UPD.error); return false; }
 }
 
+/* ---------------- sincronización con GitHub (repositorio privado) ----------------
+ * Archivos:  ops/<equipo>/<AAAA-MM-DD>.jsonl   (una operación por línea)
+ * Cada computadora solo escribe sus propios archivos, así nunca hay choques. */
+const GH = process.env.RS_GITHUB_API || 'https://api.github.com';
+const SYNC = { estado: 'sin configurar', ultimo: Number(meta('ultimaSync', '0')) || null, error: null, pendientes: 0, enCurso: false, recibidos: 0 };
+const syncListo = () => !!(CFG.sync && CFG.sync.repo && CFG.sync.token);
+function normRepo(r) {
+  r = String(r || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
+  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(r) ? r : '';
+}
+async function gh(metodo, ruta, cuerpo) {
+  let r;
+  try {
+    r = await fetch(GH + ruta, {
+      method: metodo, signal: AbortSignal.timeout(30000),
+      headers: { Authorization: 'Bearer ' + CFG.sync.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'SistemaRestaurante', ...(cuerpo ? { 'Content-Type': 'application/json' } : {}) },
+      body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+    });
+  } catch (e) { const x = new Error('Sin internet; se sincroniza al volver la conexión'); x.offline = true; throw x; }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const x = new Error(j.message || ('GitHub respondió ' + r.status)); x.status = r.status; throw x; }
+  return j;
+}
+function textoError(e, repo) {
+  if (e.offline) return e.message;
+  if (e.status === 401) return 'La clave (token) de GitHub no es válida o venció';
+  if (e.status === 403) return 'La clave (token) no tiene permiso de escritura en ' + repo + ' (Contents: Read and write)';
+  if (e.status === 404) return 'No se encontró el repositorio ' + repo + ' o la clave no tiene acceso a él';
+  return e.message;
+}
+let syncTimer = null;
+function pedirSync(ms) { if (!syncListo()) return; clearTimeout(syncTimer); syncTimer = setTimeout(() => sincronizar().catch(() => {}), ms); }
+const RUTA_OPS = /^ops\/d[0-9a-f]{10}\/\d{4}-\d{2}-\d{2}(-\d+)?\.jsonl$/;
+async function leerArbol(repo) {
+  const info = await gh('GET', `/repos/${repo}`);
+  if (info.private === false) { const x = new Error('El repositorio ' + repo + ' es PÚBLICO. Por seguridad debe ser privado (Settings → Change visibility → Private).'); x.status = 400; throw x; }
+  const rama = info.default_branch || 'main';
+  let arbol = [];
+  try { arbol = (await gh('GET', `/repos/${repo}/git/trees/${encodeURIComponent(rama)}?recursive=1`)).tree || []; }
+  catch (e) { if (e.status !== 409 && e.status !== 404) throw e; } // repositorio vacío
+  return { info, rama, remotos: new Map(arbol.filter(t => t.type === 'blob' && RUTA_OPS.test(t.path)).map(t => [t.path, t.sha])) };
+}
+async function sincronizar() {
+  if (!syncListo() || SYNC.enCurso) return;
+  SYNC.enCurso = true; SYNC.estado = 'sincronizando';
+  const repo = CFG.sync.repo;
+  try {
+    const { rama, remotos } = await leerArbol(repo);
+    // 1) bajar lo que cambió en las otras computadoras
+    const tocados = new Set(); let nuevas = 0;
+    for (const [p, sha] of remotos) {
+      if (p.startsWith('ops/' + DEV + '/')) continue;
+      if ((st.archGet.get(p) || {}).sha === sha) continue;
+      const b = await gh('GET', `/repos/${repo}/git/blobs/${sha}`);
+      const texto = Buffer.from(b.content || '', 'base64').toString('utf8');
+      tx(() => {
+        for (const linea of texto.split('\n')) {
+          if (!linea.trim()) continue;
+          let o; try { o = JSON.parse(linea); } catch (_) { continue; }
+          if (!o || typeof o.id !== 'string' || typeof o.p !== 'string' || !['set', 'update', 'delete'].includes(o.o) || o.d === DEV) continue;
+          try { parsePath(o.p, true); } catch (_) { continue; }
+          if (esLocal(o.p)) continue;
+          const r = st.opAdd.run(o.id, String(o.d), Number(o.s) || 0, Number(o.t) || 0, o.p, o.o, o.o === 'delete' ? null : JSON.stringify(o.v ?? {}), diaLocal(Number(o.t) || 0), 1);
+          if (r.changes) { tocados.add(o.p); nuevas++; }
+        }
+        for (const p2 of tocados) reconstruir(p2);
+        st.archSet.run(p, sha);
+      });
+    }
+    if (tocados.size) { SYNC.recibidos += nuevas; emitir([...new Set([...tocados].map(colOf))]); log(`Sincronización: ${nuevas} cambios recibidos de otras computadoras.`); }
+    // 2) subir lo de esta computadora
+    const dias = db.prepare('SELECT DISTINCT dia FROM ops WHERE dev=? AND subido=0 ORDER BY dia').all(DEV).map(r => r.dia);
+    const shaGit = buf => crypto.createHash('sha1').update(Buffer.concat([Buffer.from('blob ' + buf.length + '\0'), buf])).digest('hex');
+    let cortado = false;
+    for (const dia of dias) {
+      const filas = db.prepare('SELECT id,seq,ts,path,op,data FROM ops WHERE dev=? AND dia=? ORDER BY seq').all(DEV, dia);
+      const maxSeq = filas.length ? filas[filas.length - 1].seq : 0;
+      const partes = []; let actual = [], tam = 0;
+      for (const f of filas) {
+        const linea = JSON.stringify({ id: f.id, d: DEV, s: f.seq, t: f.ts, p: f.path, o: f.op, ...(f.data != null ? { v: JSON.parse(f.data) } : {}) }) + '\n';
+        const n = Buffer.byteLength(linea);
+        if (actual.length && tam + n > (Number(process.env.RS_PARTE_MAX) || 700000)) { partes.push(actual.join('')); actual = []; tam = 0; }
+        actual.push(linea); tam += n;
+      }
+      if (actual.length) partes.push(actual.join(''));
+      for (let k = 0; k < partes.length; k++) {
+        const ruta = `ops/${DEV}/${dia}${k ? '-' + (k + 1) : ''}.jsonl`;
+        const buf = Buffer.from(partes[k]);
+        const shaPrev = remotos.get(ruta);
+        if (shaPrev && shaPrev === shaGit(buf)) continue;
+        const cuerpo = { message: `${CFG.equipo}: cambios del ${dia}${k ? ' (parte ' + (k + 1) + ')' : ''}`, content: buf.toString('base64'), branch: rama };
+        if (shaPrev) cuerpo.sha = shaPrev;
+        try {
+          const r = await gh('PUT', `/repos/${repo}/contents/${ruta}`, cuerpo);
+          if (r && r.content && r.content.sha) remotos.set(ruta, r.content.sha);
+        } catch (e) {
+          if (e.status === 409 || e.status === 422) { log('Sincronización: el archivo cambió mientras se subía; se reintenta.'); pedirSync(5000); cortado = true; break; }
+          throw e;
+        }
+      }
+      if (cortado) break;
+      db.prepare('UPDATE ops SET subido=1 WHERE dev=? AND dia=? AND seq<=?').run(DEV, dia, maxSeq);
+    }
+    SYNC.ultimo = Date.now(); setMeta('ultimaSync', SYNC.ultimo);
+    SYNC.estado = 'al día'; SYNC.error = null;
+  } catch (e) {
+    SYNC.error = textoError(e, repo); SYNC.estado = e.offline ? 'sin internet' : 'error';
+    if (!e.offline) log('Sincronización:', SYNC.error);
+  } finally {
+    SYNC.enCurso = false;
+    SYNC.pendientes = db.prepare('SELECT COUNT(*) n FROM ops WHERE dev=? AND subido=0').get(DEV).n;
+    emitir(['__estado']);
+  }
+}
+function estadoSync() {
+  return { configurado: syncListo(), repo: CFG.sync.repo || '', estado: syncListo() ? SYNC.estado : 'sin configurar', ultimo: SYNC.ultimo, error: SYNC.error,
+    pendientes: SYNC.pendientes, equipo: CFG.equipo, factura: CFG.facturaEnEsteEquipo !== false };
+}
+async function configurarSync(repo, token, modo) {
+  repo = normRepo(repo); token = String(token || '').trim();
+  if (!repo) throw err(400, 'Escribe el repositorio como usuario/nombre, por ejemplo jonavarela0525-cell/restaurante-datos');
+  if (!token) throw err(400, 'Pega la clave (token) de GitHub');
+  const prev = { ...CFG.sync };
+  CFG.sync = { repo, token };
+  let arbol;
+  try {
+    arbol = await leerArbol(repo);
+    if (arbol.info.permissions && arbol.info.permissions.push === false) throw err(400, 'La clave no tiene permiso para escribir en ese repositorio (Contents: Read and write).');
+  } catch (e) { CFG.sync = prev; if (e.status === 400) throw err(400, e.message); throw err(400, textoError(e, repo)); }
+  const deOtras = [...arbol.remotos.keys()].filter(p => !p.startsWith('ops/' + DEV + '/'));
+  if (modo === 'unirse') {
+    if (!deOtras.length) { CFG.sync = prev; throw err(400, 'Todavía no hay datos del restaurante en ese repositorio. Primero enlaza la computadora de la CAJA (como principal) y espera a que diga "al día".'); }
+    respaldo('antes de enlazar con el restaurante');
+    tx(() => {
+      db.exec("DELETE FROM docs WHERE col NOT IN ('impresiones'); DELETE FROM ops; DELETE FROM archivos; DELETE FROM sesiones;");
+      for (const k of ['cor:int', 'comandas', 'ultimaSync']) st.metaDel.run(k);
+      setMeta('uniendo', new Date().toISOString());
+    });
+    SEQ = 0; CFG.facturaEnEsteEquipo = false;
+    guardarCfg(); log('Enlazando con', repo, '(esta computadora recibe los datos del restaurante)');
+    emitir(['__reset']);
+    await sincronizar();
+    if (SYNC.estado !== 'al día') throw err(400, 'Se enlazó, pero no se pudieron descargar los datos: ' + (SYNC.error || '') + '. Se reintentará solo.');
+    st.metaDel.run('uniendo');
+  } else {
+    guardarCfg(); log('Sincronización configurada con', repo, '(principal)');
+    sincronizar().catch(() => {});
+  }
+}
+
+migrarV2();
 importarSiVacia();
 try { db.prepare("DELETE FROM docs WHERE col='impresiones' AND updated < ?").run(Date.now() - 2 * 86400000); } catch (_) {}
 server.on('error', e => {
@@ -591,6 +894,8 @@ server.listen(CFG.puerto, '0.0.0.0', () => {
     setInterval(() => { if (UPD.disponible) aplicarActualizacion(false); }, 2 * 60 * 1000);
   }
   setInterval(() => respaldo('automático'), Math.max(0.25, Number(CFG.horasEntreRespaldos) || 2) * 3600 * 1000);
+  if (syncListo()) { SYNC.estado = 'esperando'; setTimeout(() => sincronizar().then(() => { if (meta('uniendo') && SYNC.estado === 'al día') st.metaDel.run('uniendo'); }).catch(() => {}), 3000); }
+  setInterval(() => sincronizar().then(() => { if (meta('uniendo') && SYNC.estado === 'al día') st.metaDel.run('uniendo'); }).catch(() => {}), (Number(process.env.RS_SYNC_SEG) || 20) * 1000);
 });
 function cerrar() { log('Cerrando el sistema...'); try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); db.close(); } catch (_) {} process.exit(0); }
 process.on('SIGINT', cerrar); process.on('SIGTERM', cerrar);

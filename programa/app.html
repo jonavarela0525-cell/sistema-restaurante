@@ -159,7 +159,9 @@ function conectarEventos(){
   const abrir=()=>{
     es=new EventSource('/api/eventos?t='+encodeURIComponent(API.token));
     es.onopen=()=>{marcarSinServidor(false);listeners.forEach(L=>L.run());api('estado').then(e=>{if(S.info.version&&e.version&&e.version!==S.info.version){toast('Sistema actualizado a la versión '+e.version+'. Recargando…');setTimeout(()=>location.reload(),1800)}}).catch(()=>{})};
-    es.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(_){return}const cols=m.cols||[];listeners.forEach(L=>{if(cols.includes(L.col)){clearTimeout(L.t);L.t=setTimeout(L.run,60)}})};
+    es.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(_){return}const cols=m.cols||[];
+      if(cols.includes('__reset')){setTimeout(()=>location.reload(),1500);return}
+      if(cols.includes('__estado')){api('estado').then(x=>{S.info.sync=x.sync;S.info.factura=x.factura;S.info.equipo=x.equipo;renderStatus();if(S.tab==='aj')pintarSync()}).catch(()=>{})}listeners.forEach(L=>{if(cols.includes(L.col)){clearTimeout(L.t);L.t=setTimeout(L.run,60)}})};
     es.onerror=()=>{marcarSinServidor(true);if(es.readyState===2){setTimeout(abrir,3000)}};
   };abrir();
 }
@@ -213,6 +215,7 @@ const tabsVisibles=()=>TABS.filter(([k])=>S.isAdmin||!ADMIN_TABS.includes(k));
 function renderTabs(){const low=bajoStock().length;if(!tabsVisibles().some(([k])=>k===S.tab))S.tab='mesas';$('#tabs').innerHTML=tabsVisibles().map(([k,i,t])=>`<button data-tab="${k}" class="${S.tab===k?'on':''}"><span class="i">${i}</span>${t}${k==='inv'&&low?`<span class="dot">${low}</span>`:''}</button>`).join('')}
 function renderStatus(){
   const b=[];
+  const sy=S.info&&S.info.sync;if(S.isAdmin&&sy&&sy.configurado&&sy.estado==='error'&&sy.error)b.push('<div class="banner w">Enlace entre computadoras: '+esc(sy.error)+'</div>');
   if(S.sinServidor)b.push('<div class="banner b">Sin conexión con la computadora del restaurante. Revisa que esté encendida y que estés en el mismo WiFi. Los cambios no se guardarán hasta que vuelva la conexión.</div>');
   $('#status').innerHTML=b.join('');
   $('#titulo').innerHTML=logoImg('height:34px;width:34px;object-fit:contain;vertical-align:middle;margin-right:8px')+esc(S.negocio.nombre||'Restaurante');
@@ -252,7 +255,7 @@ function vOrden(){
    <div class="card"><div class="row"><h3 class="sp" style="margin:0 0 6px">Orden</h3>${comandasOn()&&pendientesCocina(m).length?`<button class="btn sm p" data-act="comandaYa">🍳 Enviar a cocina (${pendientesCocina(m).length})</button>`:''}</div>${items.length?`<div class="list">${items.map(it=>`<div class="it"><div class="sp"><div><b>${esc(it.nombre)}</b></div><div class="mute">${L(it.precio)} c/u${it.nota?' · '+esc(it.nota):''}</div>${estadoCocina(m,it)}<button class="btn sm" style="margin-top:4px;padding:3px 8px" data-act="nota" data-k="${esc(it.k)}">${it.nota?'Editar nota':'+ Nota'}</button></div><div class="r"><div class="qty"><button data-act="menos" data-k="${esc(it.k)}">−</button><b>${it.cant}</b><button data-act="mas" data-k="${esc(it.k)}">+</button></div><div class="mute" style="margin-top:4px">${L(it.precio*it.cant)}</div></div></div>`).join('')}</div>`:'<p class="mute">Toca un plato del menú para agregarlo.</p>'}</div>
    <div class="card"><h3 style="margin-top:0">Menú</h3>${platos.length?`<input id="buscar" placeholder="Buscar plato…" value="${esc(S.q)}" autocomplete="off"><div class="chips">${cats.map(c=>`<button class="chip ${S.cat===c?'on':''}" data-act="cat" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div><div id="gridPlatos" class="grid">${gridPlatos(platos)}</div>`:`<p class="mute">No hay platos en el menú. Agrégalos en la pestaña Menú.</p>`}</div>
   </div>
-  ${items.length?`<div class="paybar"><div class="sp"><div style="font-size:12px;opacity:.8">Total (ISV incluido)</div><b style="font-size:20px">${L(totalItems(items))}</b></div>${S.canWrite?'<button class="btn p" data-act="cobrar">Cobrar</button>':''}</div>`:''}`;
+  ${items.length?`<div class="paybar"><div class="sp"><div style="font-size:12px;opacity:.8">Total (ISV incluido)</div><b style="font-size:20px">${L(totalItems(items))}</b></div>${S.canWrite&&S.info.factura!==false?'<button class="btn p" data-act="cobrar">Cobrar</button>':S.info.factura===false?'<span class="mute" style="color:#fff;opacity:.8;font-size:12px;text-align:right">Se cobra en<br>la caja</span>':''}</div>`:''}`;
 }
 function gridPlatos(platos){
   const q=S.q.trim().toLowerCase();
@@ -392,7 +395,7 @@ window.onload=function(){var h=Math.ceil(document.body.scrollHeight*25.4/96)+6;v
 function facturaDoc(f){return docImpresion(facturaHTML(f),'Factura '+f.numero)}
 function reciboDoc(texto){return docImpresion('<div class="inv">'+(S.negocio.logoFactura!==false?'<div class="c">'+logoImg('width:30mm;display:block;margin:0 auto 4px')+'</div>':'')+'<pre>'+esc(texto)+'</pre></div>','Recibo')}
 /* ---------- impresión ---------- */
-const esImpresora=()=>{try{const v=localStorage.getItem('rs_impresora');if(v===null)return ['localhost','127.0.0.1'].includes(location.hostname);return v==='1'}catch(e){return false}};
+const esImpresora=()=>{try{const v=localStorage.getItem('rs_impresora');if(v===null)return ['localhost','127.0.0.1'].includes(location.hostname)&&S.info.factura!==false;return v==='1'}catch(e){return false}};
 async function mandarAImprimir(job){
   if(esImpresora()){imprimirTrabajo(job);return}
   try{await api('op',{op:'set',path:'impresiones/'+nid(),data:{tipo:job.tipo,facturaId:job.facturaId||null,html:job.html||null,estado:'pendiente',creado:new Date().toISOString(),por:S.uid||null}});toast('Enviado a la impresora de caja')}
@@ -505,10 +508,10 @@ function registrarAbono(id,monto,metodo){
     const f=s.data();if(f.anulada)throw new Error('La factura está anulada');
     const antes=r2(f.saldo);if(antes<=0)throw new Error('Este crédito ya está pagado');
     if(monto>antes+0.004)throw new Error('El abono es mayor que el saldo ('+L(antes)+')');
-    const despues=r2(antes-monto);const ahora=new Date();
-    try{await ref.update({saldo:despues,creditoPendiente:despues>0,...(despues<=0?{pagadoEn:ahora.toISOString()}:{})});
-      const ab={facturaId:id,numero:f.numero,cliente:f.cliente,monto,metodo,saldoAntes:antes,saldoDespues:despues,fecha:ahora.toISOString(),dia:fdia(ahora),por:S.uid||null};
-      await S.db.doc('abonos/'+nid()).set(ab);return ab}
+    const despues=r2(antes-monto);const ahora=new Date();const abId=nid();
+    try{await ref.update({abonos:{[abId]:monto}});
+      const ab={facturaId:id,numero:f.numero,cliente:f.cliente,monto,metodo,saldoAntes:antes,saldoDespues:despues,fecha:ahora.toISOString(),dia:fdia(ahora),por:S.uid||null,equipo:S.info.equipo||''};
+      await S.db.doc('abonos/'+abId).set(ab);return ab}
     catch(e){if(e&&e.code)writeErr(e);throw e}
   });
 }
@@ -734,6 +737,7 @@ function vAjustes(){
    <p style="margin-top:0">Conecta el celular al <b>WiFi del restaurante</b> y abre en el navegador:</p>
    ${(S.info.ips||[]).length?S.info.ips.map(ip=>`<div class="inv" style="font-size:16px;margin:6px 0;text-align:center"><b>http://${esc(ip)}:${esc(S.info.puerto)}</b></div>`).join(''):'<p class="mute">Esta computadora no está conectada a ninguna red.</p>'}
    <p class="mute">Funciona aunque no haya internet, siempre que esta computadora esté encendida con el sistema abierto. Si la dirección cambia, revísala aquí.</p></div>
+  <h3>Enlace entre computadoras (GitHub)</h3><div class="card" id="syncCard">${tarjetaSync()}</div>
   <h3>Actualizaciones</h3><div class="card"><div id="updInfo" class="mute">Cargando…</div>
    <div class="row wrap" style="margin-top:10px"><button class="btn" data-act="updRevisar">Buscar actualización</button><button class="btn p" data-act="updInstalar" id="btnUpdInst" style="display:none">Instalar ahora</button></div></div>
   <h3>Respaldos</h3><div class="card" id="respCard">
@@ -744,6 +748,37 @@ function vAjustes(){
   <p class="mute" style="text-align:center;margin-top:16px">Sistema del Restaurante v${esc(S.info.version||'')}</p>`;
 }
 
+function tarjetaSync(){
+  const y=S.info.sync||{};const ok=y.configurado;
+  const est=!ok?'<span class="pill w">Sin enlazar</span>':y.estado==='al día'?'<span class="pill ok">✅ Al día</span>':y.estado==='sin internet'?'<span class="pill w">Sin internet: se pone al día al volver</span>':y.estado==='error'?'<span class="pill bad">Error</span>':`<span class="pill a">${esc(y.estado||'')}</span>`;
+  return `<div class="row wrap"><div class="sp"><b>Esta computadora:</b> ${esc(S.info.equipo||'')} ${S.info.factura!==false?'<span class="pill ok">Cobra y factura</span>':'<span class="pill a">No factura</span>'}</div>${est}</div>
+   ${ok?`<p class="mute">Repositorio: <b>${esc(y.repo)}</b>${y.ultimo?' · última sincronización '+new Date(y.ultimo).toLocaleString('es-HN'):''}${y.pendientes?` · ${y.pendientes} cambio(s) por subir`:''}</p>${y.error?`<p style="color:var(--bad)">${esc(y.error)}</p>`:''}
+    <div class="row wrap"><button class="btn" data-act="syncAhora">Sincronizar ahora</button><button class="btn d" data-act="syncQuitar">Desenlazar</button></div>`
+   :`<p class="mute">Enlaza las computadoras del restaurante para que tengan los mismos datos (mesas, ventas, créditos, inventario y menú), con o sin internet. Necesitas un repositorio <b>privado</b> en GitHub y una clave (token) con permiso de escritura.</p>
+    <button class="btn p" data-act="syncConfig">Enlazar esta computadora</button>`}
+   <label class="check"><input type="checkbox" id="eqFactura" ${S.info.factura!==false?'checked':''}> Esta computadora cobra y emite facturas (solo la caja)</label>
+   <p class="mute">Marca esta casilla <b>solo en la computadora de la caja</b>, para que los números de factura nunca se repitan.</p>`}
+function pintarSync(){const c=$('#syncCard');if(c)c.innerHTML=tarjetaSync()}
+function formSync(desdeInicio){
+  openModal(`<h2>Enlazar computadoras</h2>
+   <label>Repositorio privado de GitHub</label><input id="sR" placeholder="jonavarela0525-cell/restaurante-datos" value="${esc((S.info.sync&&S.info.sync.repo)||'jonavarela0525-cell/restaurante-datos')}" autocapitalize="off">
+   <label>Clave (token) de GitHub</label><input id="sT" type="password" placeholder="github_pat_..." autocomplete="off">
+   ${desdeInicio?'<input type="hidden" id="sM" value="unirse">':`<label>¿Qué computadora es esta?</label><select id="sM"><option value="principal">La de la CAJA (sus datos son los que valen)</option><option value="unirse">Otra computadora (recibe los datos del restaurante)</option></select>
+   <p class="mute" id="sAviso"></p>`}
+   <div class="row" style="margin-top:14px"><span class="sp"></span><button class="btn" data-x="c">Cancelar</button><button class="btn p" data-x="o">Enlazar</button></div>`,
+  sh=>{const sel=sh.querySelector('#sM'),av=sh.querySelector('#sAviso');
+    const aviso=()=>{if(av)av.innerHTML=sel.value==='unirse'?'<b style="color:var(--bad)">Los datos actuales de ESTA computadora se reemplazan por los del restaurante</b> (se guarda un respaldo antes). Después entras con los usuarios y PIN del restaurante.':'Esta computadora sube sus datos y las demás los reciben.'};
+    if(sel&&sel.tagName==='SELECT'){sel.onchange=aviso;aviso()}
+    sh.querySelector('[data-x=c]').onclick=closeModal;
+    sh.querySelector('[data-x=o]').onclick=async e=>{const bt=e.currentTarget;bt.disabled=true;bt.textContent='Enlazando…';
+      const datos={repo:sh.querySelector('#sR').value,token:sh.querySelector('#sT').value,modo:sel.value};
+      try{
+        if(desdeInicio){await api('enlazar',datos)}else{await api('sync',{accion:'configurar',...datos})}
+        closeModal();
+        if(datos.modo==='unirse'){guardarToken('');toast('Datos del restaurante descargados. Entra con tu usuario y PIN del restaurante.');setTimeout(()=>location.reload(),1500)}
+        else{toast('Computadora enlazada');const x=await api('estado');S.info.sync=x.sync;pintarSync()}
+      }catch(err){toast(err.message);bt.disabled=false;bt.textContent='Enlazar'}}});
+}
 function pintarUpd(r){const el=$('#updInfo');if(!el)return;
   el.innerHTML=`Versión instalada: <b>${esc(r.version)}</b><br>${!r.repo?'Actualizaciones automáticas: no configuradas.':`Estado: <b>${esc(r.estado||'')}</b>${r.ultimaRevision?' · revisado '+new Date(r.ultimaRevision).toLocaleString('es-HN'):''}${r.error?`<br><span style="color:var(--bad)">${esc(r.error)}</span>`:''}<br>El sistema revisa cada hora si hay versión nueva y la instala sola cuando no hay mesas abiertas.`}${r.lanzador?'':'<br><span style="color:var(--warn)">Reinicia la computadora una vez para activar la instalación automática.</span>'}`;
   const b=$('#btnUpdInst');if(b)b.style.display=r.disponible?'':'none'}
@@ -798,6 +833,9 @@ document.addEventListener('click',async e=>{
     case 'updRevisar':{b.disabled=true;b.textContent='Buscando…';try{pintarUpd(await api('actualizacion',{accion:'revisar'}))}catch(e){toast(e.message)}b.disabled=false;b.textContent='Buscar actualización';break}
     case 'updInstalar':{if(!twoTap(b,'¿Instalar? El sistema se reiniciará unos segundos'))break;b.disabled=true;try{await api('actualizacion',{accion:'instalar'});toast('Instalando… el sistema se recargará solo')}catch(e){toast(e.message);b.disabled=false}break}
     case 'logoQuitar':{if(!twoTap(b))break;try{await W('config/logo','delete');toast('Se usa el logo original')}catch(e){}break}
+    case 'syncConfig':formSync(false);break;
+    case 'syncAhora':{b.disabled=true;b.textContent='Sincronizando…';try{S.info.sync=await api('sync',{accion:'ahora'})}catch(e){toast(e.message)}pintarSync();break}
+    case 'syncQuitar':{if(!twoTap(b,'¿Desenlazar? Dejará de recibir cambios'))break;try{S.info.sync=await api('sync',{accion:'quitar'});toast('Desenlazada')}catch(e){toast(e.message)}pintarSync();break}
     case 'respaldar':{b.disabled=true;try{const r=await api('respaldo',{});toast('Respaldo creado: '+r.nombre);cargarRespaldos()}catch(e){toast(e.message)}b.disabled=false;break}
     case 'descargarDb':{try{const r=await fetch('/api/descargarRespaldo',{headers:{'X-Token':API.token}});if(!r.ok)throw new Error('No se pudo descargar');const nombre=(r.headers.get('Content-Disposition')||'').match(/filename="([^"]+)"/);await localDl.save({filename:nombre?nombre[1]:'restaurante.db',data:await r.blob()})}catch(e){toast(e.message)}break}
     case 'exportar':{try{const r=await fetch('/api/exportar',{headers:{'X-Token':API.token}});if(!r.ok)throw new Error('No se pudo exportar');const t=await r.text();await localDl.save({filename:'respaldo_restaurante_'+hoy()+'.json',data:t})}catch(e){toast(e.message)}break}
@@ -823,7 +861,7 @@ document.addEventListener('click',async e=>{
   }
 });
 document.addEventListener('input',e=>{if(e.target.id!=='buscar'&&$('#view').contains(e.target))S.dirty=true;if(e.target.id==='buscar'){S.q=e.target.value;const g=$('#gridPlatos');if(g)g.innerHTML=gridPlatos(Object.values(S.platos).filter(p=>p.activo!==false).sort((a,b)=>String(a.nombre).localeCompare(b.nombre)))}});
-document.addEventListener('change',e=>{if(e.target.id==='fRest2'){const f=e.target.files&&e.target.files[0];if(f){openModal(`<h2>¿Restaurar este respaldo?</h2><p>${esc(f.name)}</p><p>Todos los datos actuales de esta computadora se reemplazarán por los del respaldo. La base actual se guarda aparte.</p><div class="row"><span class="sp"></span><button class="btn" data-x="c">Cancelar</button><button class="btn p" data-x="o">Restaurar</button></div>`,sh=>{sh.querySelector('[data-x=c]').onclick=closeModal;sh.querySelector('[data-x=o]').onclick=()=>{closeModal();confirmarRestaurar=true;restaurarRespaldo(f,false)}})}e.target.value='';return}if(e.target.id==='logoFile'){subirLogo(e.target.files&&e.target.files[0]);return}
+document.addEventListener('change',e=>{if(e.target.id==='eqFactura'){S.dirty=false;const v=e.target.checked;api('equipo',{factura:v}).then(r=>{S.info.factura=r.factura;toast(v?'Esta computadora cobra y factura':'Esta computadora ya no factura');render()}).catch(er=>toast(er.message));return}if(e.target.id==='fRest2'){const f=e.target.files&&e.target.files[0];if(f){openModal(`<h2>¿Restaurar este respaldo?</h2><p>${esc(f.name)}</p><p>Todos los datos actuales de esta computadora se reemplazarán por los del respaldo. La base actual se guarda aparte.</p><div class="row"><span class="sp"></span><button class="btn" data-x="c">Cancelar</button><button class="btn p" data-x="o">Restaurar</button></div>`,sh=>{sh.querySelector('[data-x=c]').onclick=closeModal;sh.querySelector('[data-x=o]').onclick=()=>{closeModal();confirmarRestaurar=true;restaurarRespaldo(f,false)}})}e.target.value='';return}if(e.target.id==='logoFile'){subirLogo(e.target.files&&e.target.files[0]);return}
   if(e.target.id==='aLF'){S.dirty=false;W('config/negocio','update',{logoFactura:e.target.checked}).then(()=>toast('Guardado')).catch(()=>{});return}if(e.target.id==='esImp'){try{localStorage.setItem('rs_impresora',e.target.checked?'1':'0')}catch(_){}S.dirty=false;escucharImpresiones();vigilarComandas();toast(e.target.checked?'Este dispositivo imprimirá las facturas':'Este dispositivo ya no imprime');return}const m=e.target.dataset&&e.target.dataset.mesa;if(m){const v=e.target.value.trim();S.dirty=false;if(v&&S.mesas[m]&&v!==S.mesas[m].nombre)mutate('mesas',m,()=>({nombre:v})).catch(()=>{})}});
 
 /* ---------- arranque ---------- */
@@ -844,12 +882,14 @@ function pantallaAcceso(setup,msg){
    ${setup?'<label>Repite el PIN</label><input id="lP2" type="password" inputmode="numeric">':''}
    <div id="lMsg" class="mute" style="color:var(--bad);min-height:20px;margin-top:8px">${esc(msg||'')}</div>
    <button class="btn p full" id="lGo">${setup?'Crear administrador':'Entrar'}</button>
-   ${setup?`<div style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px;text-align:center"><p class="mute" style="margin-top:0">¿Ya usabas el sistema en otra computadora?</p><label class="btn full" style="display:block">📂 Restaurar un respaldo<input type="file" id="fRest" accept=".db" style="display:none"></label><p class="mute">Elige el archivo <b>restaurante_....db</b> (por ejemplo desde tu memoria USB o la carpeta "respaldos").</p></div>`:''}</div>`;
+   ${setup?`<div style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px;text-align:center"><p class="mute" style="margin-top:0">¿El restaurante ya usa el sistema en otra computadora enlazada por GitHub?</p><button class="btn full" id="bEnlazar">🔗 Enlazar con el restaurante</button></div>
+   <div style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px;text-align:center"><p class="mute" style="margin-top:0">¿Ya usabas el sistema en otra computadora?</p><label class="btn full" style="display:block">📂 Restaurar un respaldo<input type="file" id="fRest" accept=".db" style="display:none"></label><p class="mute">Elige el archivo <b>restaurante_....db</b> (por ejemplo desde tu memoria USB o la carpeta "respaldos").</p></div>`:''}</div>`;
   render();
   const go=async()=>{const bt=$('#lGo');const u=$('#lU').value.trim(),p=$('#lP').value;const m=$('#lMsg');
     if(!u){m.textContent='Escribe el usuario';return}if(setup){if(!$('#lN').value.trim()){m.textContent='Escribe tu nombre';return}if(!/^\d{4,8}$/.test(p.trim())){m.textContent='El PIN debe tener de 4 a 8 números';return}if(p!==$('#lP2').value){m.textContent='Los PIN no coinciden';return}}
     bt.disabled=true;try{const r=await api(setup?'configurar':'entrar',setup?{nombre:$('#lN').value,usuario:u,pin:p}:{usuario:u,pin:p});guardarToken(r.token);S.yo=r.yo;S.pantalla=null;S.dirty=false;S.pending=false;if(document.activeElement)document.activeElement.blur();iniciar()}catch(e){m.textContent=e.message;bt.disabled=false}};
   $('#lGo').onclick=go;
+  const be=$('#bEnlazar');if(be)be.onclick=()=>formSync(true);
   const fr=$('#fRest');if(fr)fr.onchange=()=>restaurarRespaldo(fr.files&&fr.files[0],true);$('#view').addEventListener('keydown',e=>{if(e.key==='Enter'&&S.pantalla)go()});
   setTimeout(()=>{const f=$(setup?'#lN':'#lU');if(f)f.focus()},50);
 }
@@ -899,6 +939,7 @@ render();
   let est;
   try{est=await api('estado')}catch(e){S.pantalla=`<div class="card empty" style="max-width:420px;margin:30px auto"><p><b>No se pudo conectar con el sistema.</b></p><p>Revisa que la computadora del restaurante esté encendida y con el sistema abierto, y que este dispositivo esté en el mismo WiFi.</p><button class="btn p" onclick="location.reload()">Reintentar</button></div>`;render();return}
   Object.assign(S.info,est);if(est.ahora)S.desfase=est.ahora-Date.now();
+  if(est.uniendo&&!est.hayUsuarios){S.pantalla=`<div class="card empty" style="max-width:420px;margin:30px auto"><p><b>Descargando los datos del restaurante…</b></p><p class="mute">Esta computadora se está enlazando por internet. Espera un momento; se abrirá sola.</p></div>`;render();setTimeout(()=>location.reload(),5000);return}
   if(!est.hayUsuarios)return pantallaAcceso(true);
   if(!est.yo){guardarToken('');return pantallaAcceso(false)}
   S.yo=est.yo;iniciar();
