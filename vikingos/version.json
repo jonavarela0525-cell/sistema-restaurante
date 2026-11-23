@@ -1,16 +1,16 @@
 {
- "version": "1.4.1",
- "publicado": "2026-11-18T23:56:11",
+ "version": "1.5.0",
+ "publicado": "2026-11-23T10:50:52",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "2fb604ba16af3fc09b7a3045e1bc65502c123931edfedb107c6d85a723e0333f",
-   "bytes": 45391
+   "sha256": "61d004b685ab05032ab24ef9c8d7ca498832f7d9a3af62e1e50f54e9b066ab1a",
+   "bytes": 46104
   },
   {
    "nombre": "app.html",
-   "sha256": "b363b38eac0a3234193fdc27b02cac6500e0db21dfc1169c8f77721e2f771cd7",
-   "bytes": 215296
+   "sha256": "23a6b103f0cda9381c8f6ff2c542e3807c2cc99755aca723b5d35aec53420342",
+   "bytes": 223080
   },
   {
    "nombre": "lanzador.js",
@@ -58,5 +58,5 @@
    "bytes": 44609
   }
  ],
- "cambios": "Los reportes muestran siempre todas las formas de pago."
+ "cambios": "Ventas varias del día: se acumulan y se facturan juntas antes del cierre."
 }

@@ -14,7 +14,7 @@ const crypto = require('crypto');
 process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 
-const VERSION = '1.4.1';
+const VERSION = '1.5.0';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante';
 const CARPETA_ACTUALIZACIONES = 'vikingos/';
 const BASE = __dirname;
@@ -125,6 +125,7 @@ function stamp() { const d = new Date(); const z = n => String(n).padStart(2, '0
 function aplicar(cur, op, data) {
   if (op === 'set') return data;
   if (op === 'update') return cur ? deepMerge(cur, data) : null; // actualizar algo que no existe: se ignora
+  if (op === 'merge') return cur ? deepMerge(cur, data) : data; // crear o completar
   return null; // delete
 }
 function guardarDoc(p, d) { if (d) st.put.run(p, colOf(p), JSON.stringify(d), Date.now()); else st.del.run(p); }
@@ -195,8 +196,16 @@ function checkWrite(u, op, p, data, existe) {
     case 'productos':
       // cajeros: descontar por venta (v...) o registrar entradas de mercadería (e..., positivas)
       if (op === 'update' && existe && soloClaves(data, ['movs']) && isObj(data.movs) &&
-        Object.entries(data.movs).every(([k, v]) => (k[0] === 'v' && Number(v) < 0) || (k[0] === 'e' && Number(v) > 0))) return;
+        Object.entries(data.movs).every(([k, v]) => (k[0] === 'v' && Number(v) < 0) || (k[0] === 'e' && Number(v) > 0) ||
+          (k[0] === 'w' && (Number(v) < 0 || (k.endsWith('r') && Number(v) > 0))))) return;
       NO(); break;
+    case 'abiertas': {
+      // ventas varias del día: agregar o quitar productos, y marcarlas facturadas
+      const cur = readDoc(p);
+      if (op === 'merge' && soloClaves(data, ['dia', 'equipo', 'facturada', 'creado', 'items']) && data.facturada !== true && (!cur || cur.facturada !== true)) return;
+      if (op === 'update' && existe && cur.facturada !== true && soloClaves(data, ['facturada', 'factura', 'ventaId', 'facturadaTs', 'facturadaPor']) && data.facturada === true) return;
+      NO(); break;
+    }
     case 'gastos':
       // cajeros: registrar gastos nuevos (anularlos solo el administrador)
       if (op === 'set' && !existe && isObj(data) && Number(data.monto) > 0) return;
@@ -354,7 +363,7 @@ async function sincronizar() {
         for (const linea of texto.split('\n')) {
           if (!linea.trim()) continue;
           let o; try { o = JSON.parse(linea); } catch (_) { continue; }
-          if (!o || typeof o.id !== 'string' || typeof o.p !== 'string' || !['set', 'update', 'delete'].includes(o.o)) continue;
+          if (!o || typeof o.id !== 'string' || typeof o.p !== 'string' || !['set', 'update', 'merge', 'delete'].includes(o.o)) continue;
           try { parsePath(o.p, true); } catch (_) { continue; }
           const r = st.opAdd.run(o.id, String(o.d), Number(o.s) || 0, Number(o.t) || 0, o.p, o.o, o.o === 'delete' ? null : JSON.stringify(o.v ?? {}), diaLocal(Number(o.t) || 0), 1);
           if (r.changes) { tocados.add(o.p); nuevas++; }
@@ -587,7 +596,7 @@ async function api(req, res, url) {
       parsePath(b.col, false); checkRead(u, b.col + '/x');
       return send(res, 200, { docs: query(b.col, b.filters, b.orderBy, b.limit) });
     }
-    if (op === 'set' || op === 'update' || op === 'delete') {
+    if (op === 'set' || op === 'update' || op === 'merge' || op === 'delete') {
       parsePath(b.path, true);
       if (op !== 'delete' && !isObj(b.data)) throw err(400, 'Datos inválidos');
       tx(() => {

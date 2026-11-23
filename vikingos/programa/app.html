@@ -157,6 +157,7 @@ dialog::backdrop{background:#0009}
  <div class="banner" id="banner"></div>
 
  <section class="view on" id="v-vender">
+  <div class="banner" id="varViejas" style="display:none"></div>
   <div class="pos">
    <div>
     <div class="bar"><input id="q" placeholder="Buscar producto o escanear código de barras" autocomplete="off"></div>
@@ -164,6 +165,7 @@ dialog::backdrop{background:#0009}
     <div class="grid" id="grid"></div>
    </div>
    <aside class="ticket" id="ticket">
+    <div class="pagos" id="modoT" style="grid-template-columns:1fr 1fr;margin:0 0 12px"><button data-m="n" class="on">Factura normal</button><button data-m="v">Ventas varias del día</button></div>
     <h3>Factura</h3>
     <div class="pagos niv" id="niveles" style="grid-template-columns:repeat(3,1fr)"><button data-n="n" class="on">Precio normal</button><button data-n="d">Descuento</button><button data-n="m">Por mayor</button></div>
     <div id="lines"></div>
@@ -174,6 +176,7 @@ dialog::backdrop{background:#0009}
     <div id="cred" class="f2" style="display:none"><div class="note" id="csaldo" style="grid-column:1/-1;color:#b3401f;font-weight:600"></div><input id="ctel" placeholder="Teléfono del cliente" inputmode="tel"><label style="font-size:13px;color:#7a6c60;display:flex;flex-direction:column">Vence el<input id="cven" type="date"></label></div>
     <button class="pri cobrar" id="cobrar">Cobrar</button>
     <button class="ghost" id="vaciar" style="width:100%;margin-top:6px">Vaciar</button>
+    <div id="varPanel" style="display:none"></div>
    </aside>
   </div>
   <button class="pri float" id="flt"><span id="fltN">Ticket vacío</span><span id="fltT">L 0.00</span></button>
@@ -341,6 +344,7 @@ $('#flt').onclick=()=>$('#ticket').scrollIntoView({behavior:'smooth'});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 $('#cobrar').onclick=async()=>{
  if(!cart.length){toast('El ticket está vacío');return}
+ if(modoVarias){const b=$('#cobrar');b.disabled=true;try{await agregarVarias()}catch(er){toast('No se pudo agregar: '+er.message)}b.disabled=false;return}
  if(!db){toast('Sin conexión con el sistema');return}
  const T=totals(cart),rec=+$('#rec').value;
  if(pago==='Efectivo'&&rec&&rec<T.t){toast('El efectivo recibido no alcanza');return}
@@ -590,6 +594,7 @@ function dref(path){
   get:async()=>{const r=await api('op',{op:'get',path});return snapDoc(d.id,r.exists?r.data:null)},
   set:data=>api('op',{op:'set',path,data}),
   update:data=>api('op',{op:'update',path,data}),
+  merge:data=>api('op',{op:'merge',path,data}),
   delete:()=>api('op',{op:'delete',path}),
   onSnapshot:(next,error)=>escuchar(col,async()=>{try{next(await d.get())}catch(e){if(e.code!=='unavailable'&&error)error(e)}}),
   collection:c=>qref(path+'/'+c,[],null,null)};
@@ -955,7 +960,8 @@ function renderCaja(cargarArq){
  $('#cjG').innerHTML=GD.length?GD.map(g=>`<tr class="${g.anulado?'anul':''}"><td data-l="Hora">${new Date(g.ts).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})}</td><td data-l="Gasto"><b>${esc(g.desc)}</b><br><small class="note">${esc(g.cat)} · ${esc(g.por)}${g.equipo&&g.equipo!==cajaEq?' · '+esc(g.equipo):''}</small></td><td data-l="Pago">${esc(g.pago)}</td><td class="r" data-l="Monto">${L(g.monto)}</td><td class="acts">${!g.anulado?`<button class="dng adm" data-g="${esc(g.id)}">Anular</button>`:''}</td></tr>`).join(''):'<tr><td colspan="5" class="empty">Sin gastos registrados hoy.</td></tr>';
  if(cargarArq&&ARQ&&document.activeElement?.closest?.('#arq')==null){$('#aqFondo').value=ARQ.fondo||'';DENOM.forEach(d=>{const el=$('#aq_'+String(d).replace('.','_'));if(el)el.value=(ARQ.conteo||{})[String(d)]||''});$('#aqNota').value=ARQ.nota||''}
  const c=cuentaCaja(),k=contado(),dif=+(k-c.esperado).toFixed(2);
- $('#aqRes').innerHTML=`<div class="tot"><span>Fondo inicial</span><span>${L(c.fondo)}</span></div><div class="tot"><span>+ Ventas en efectivo</span><span>${L(c.ef)}</span></div><div class="tot"><span>+ Abonos en efectivo</span><span>${L(c.abEf)}</span></div><div class="tot"><span>− Gastos en efectivo</span><span>${L(c.gEf)}</span></div><div class="tot" style="font-weight:700;border-top:1px solid var(--line);padding-top:6px"><span>Efectivo que debe haber</span><span>${L(c.esperado)}</span></div><div class="tot" style="font-weight:700"><span>Efectivo contado</span><span>${L(k)}</span></div><div class="tot big" style="color:${Math.abs(dif)<0.01?'var(--ok)':dif<0?'var(--warn)':'var(--acc)'};border-color:currentColor"><span>${Math.abs(dif)<0.01?'Cuadra':dif<0?'Faltante':'Sobrante'}</span><span>${L(Math.abs(dif))}</span></div>
+ const vp=varItems(varPend()),vpT=vp.reduce((s2,x)=>s2+x.precio*x.cant,0);
+ $('#aqRes').innerHTML=(vp.length?`<div class="banner" style="display:block;margin-bottom:10px"><b>Hay ${L(vpT)} en ventas varias sin facturar.</b> Factúralas en Vender → Ventas varias del día antes de cerrar; si no, el arqueo te va a salir con sobrante.</div>`:'')+`<div class="tot"><span>Fondo inicial</span><span>${L(c.fondo)}</span></div><div class="tot"><span>+ Ventas en efectivo</span><span>${L(c.ef)}</span></div><div class="tot"><span>+ Abonos en efectivo</span><span>${L(c.abEf)}</span></div><div class="tot"><span>− Gastos en efectivo</span><span>${L(c.gEf)}</span></div><div class="tot" style="font-weight:700;border-top:1px solid var(--line);padding-top:6px"><span>Efectivo que debe haber</span><span>${L(c.esperado)}</span></div><div class="tot" style="font-weight:700"><span>Efectivo contado</span><span>${L(k)}</span></div><div class="tot big" style="color:${Math.abs(dif)<0.01?'var(--ok)':dif<0?'var(--warn)':'var(--acc)'};border-color:currentColor"><span>${Math.abs(dif)<0.01?'Cuadra':dif<0?'Faltante':'Sobrante'}</span><span>${L(Math.abs(dif))}</span></div>
  <p class="note" style="margin-top:10px">Para comparar con el datáfono y el banco: tarjeta ${L(c.tj)} · transferencias ${L(c.tr)}${c.abOtros?' · abonos no en efectivo '+L(c.abOtros):''} · al crédito ${L(c.cr)} · ${c.n} factura(s).</p>
  ${ARQ?`<p class="note">Arqueo guardado por <b>${esc(ARQ.por)}</b> a las ${new Date(ARQ.ts).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})}${ARQ.diferencia!=null?' · diferencia '+L(ARQ.diferencia):''}.</p>`:''}`;
  $('#cjKpi').innerHTML=`<div class="kpi main"><span>Gastos de hoy</span><b>${L(GD.filter(g=>!g.anulado).reduce((s,g)=>s+g.monto,0))}</b></div><div class="kpi"><span>Ventas en efectivo</span><b>${L(c.ef)}</b></div><div class="kpi"><span>Efectivo esperado en caja</span><b>${L(c.esperado)}</b></div>`;
@@ -1029,6 +1035,63 @@ async function reportePDF(R){
  return pdf.generar();
 }
 
+/* ---------- VENTAS VARIAS DEL DÍA (cuenta abierta, se factura al final) ---------- */
+let modoVarias=false,AB=[];
+const varEq=()=>EST.equipo||'';
+const varPend=()=>AB.filter(d=>d.facturada!==true&&d.equipo===varEq());
+const varItems=docs=>docs.flatMap(d=>Object.entries(d.items||{}).filter(([k,x])=>x&&!x.anulado&&x.id).map(([k,x])=>({...x,k,doc:d.id})));
+function varAgrupar(items){const g={};items.forEach(x=>{const k=x.id+'|'+x.precio;g[k]=g[k]||{...x,cant:0,ents:[]};g[k].cant+=x.cant;g[k].ents.push(x)});return Object.values(g).sort((a,b)=>a.nom.localeCompare(b.nom))}
+function setModoVarias(v){modoVarias=v;$$('#modoT button').forEach(b=>b.classList.toggle('on',(b.dataset.m==='v')===v));
+ $('#ticket h3').textContent=v?'Ventas varias del día':'Factura';
+ ['.ticket .f2:not(#cred)','#pagos','#efec','#cred'].forEach(sel=>{const el=$(sel);if(el)el.style.display=v?'none':''});
+ if(!v){$('#efec').style.display=pago==='Efectivo'?'':'none';$('#cred').style.display=pago==='Crédito'?'':'none'}
+ $('#cobrar').textContent=v?'Agregar a ventas varias':'Cobrar';$('#varPanel').style.display=v?'':'none';renderVarias()}
+$('#modoT').onclick=e=>{const b=e.target.closest('button');if(b)setModoVarias(b.dataset.m==='v')};
+function renderVarias(){
+ const hoy=dia(Date.now()),pend=varPend(),hoyDocs=pend.filter(d=>d.dia===hoy),viejas=pend.filter(d=>d.dia<hoy);
+ const itH=varItems(hoyDocs),totH=itH.reduce((s,x)=>s+x.precio*x.cant,0),itV=varItems(viejas),totV=itV.reduce((s,x)=>s+x.precio*x.cant,0);
+ const bt=$('#modoT [data-m=v]');if(bt)bt.textContent='Ventas varias del día'+(itH.length?' · '+L(totH):'');
+ const bn=$('#varViejas');if(bn){bn.style.display=itV.length?'block':'none';bn.innerHTML=itV.length?`<b>Hay ventas varias sin facturar de días anteriores</b> (${[...new Set(viejas.map(d=>fmtD(d.dia)))].join(', ')}) por ${L(totV)}. <button class="pri" id="varFacV" style="margin-left:8px;min-height:36px">Facturar ahora</button>`:'';if(itV.length)$('#varFacV').onclick=()=>facturarVarias(viejas)}
+ if(!$('#varPanel')||!modoVarias)return;
+ const gr=varAgrupar(itH);
+ $('#varPanel').innerHTML=`<div style="border-top:2px solid #1f1712;margin-top:12px;padding-top:10px"><div class="tot" style="font-weight:700"><span>Acumulado de hoy (sin facturar)</span><span>${L(totH)}</span></div>
+ ${gr.length?gr.map(x=>`<div class="line" style="grid-template-columns:minmax(0,1fr) auto auto"><div class="n">${esc(x.nom)}<small>${x.cant} × ${L(x.precio)}</small></div><button class="ghost" data-q="${esc(x.ents[x.ents.length-1].doc)}|${esc(x.ents[x.ents.length-1].k)}" style="min-height:32px;padding:2px 10px;color:#1f1712;border-color:#cfc5b8" title="Quitar el último agregado">Quitar</button><div class="t">${L(x.precio*x.cant)}</div></div>`).join(''):'<div class="empty">Todavía no hay ventas varias hoy. Agrega productos y toca "Agregar a ventas varias".</div>'}
+ ${gr.length?`<button class="pri cobrar" id="varFac" style="background:#1f1712;color:#fff">Facturar ventas varias (${L(totH)})</button>`:''}</div>`;
+ if(gr.length)$('#varFac').onclick=()=>facturarVarias(hoyDocs);
+}
+$('#ticket').addEventListener('click',async e=>{const b=e.target.closest('#varPanel button[data-q]');if(!b)return;const[docId,k]=b.dataset.q.split('|');
+ const d=AB.find(x=>x.id===docId),it=d&&d.items[k];if(!it)return;
+ if(b.dataset.c!=='1'){b.dataset.c='1';b.textContent='¿Quitar '+it.cant+'?';return}
+ try{await db.doc('abiertas/'+docId).merge({items:{[k]:{anulado:true,anPor:S?.nombre||''}}});await db.doc('productos/'+it.id).update({movs:{['w'+k+'r']:it.cant}});toast('Quitado: '+it.nom)}catch(er){toast(er.message)}});
+async function agregarVarias(){
+ const hoy=dia(Date.now()),eq=varEq();let d=varPend().find(x=>x.dia===hoy);
+ const id=d?d.id:'v'+hoy+'_'+eqKey(eq)+'_'+rid();
+ const items={},ts=Date.now();
+ cart.forEach((it,i)=>{items[rid()+i]={id:it.id,cod:it.cod,nom:it.nom,precio:it.precio,nivel:it.nivel,normal:it.normal,isv:it.isv,costo:it.costo,cant:it.cant,ts,por:S?.nombre||''}});
+ await db.doc('abiertas/'+id).merge({dia:hoy,equipo:eq,facturada:false,creado:d?d.creado:ts,items});
+ for(const [k,it] of Object.entries(items))await db.doc('productos/'+it.id).update({movs:{['w'+k]:-it.cant}});
+ const tot=cart.reduce((s,x)=>s+x.precio*x.cant,0);cart=[];renderCart();renderPOS();toast('Agregado a ventas varias: '+L(tot));
+}
+function facturarVarias(docs){
+ const it=varItems(docs);if(!it.length){toast('No hay nada que facturar');return}
+ const gr=varAgrupar(it).map(x=>({id:x.id,cod:x.cod||'',nom:x.nom,precio:x.precio,nivel:x.nivel||'n',normal:x.normal||x.precio,isv:+x.isv||0,costo:x.costo,cant:x.cant}));
+ const T=totals(gr);let pg='Efectivo';
+ dlg(`<h3>Facturar ventas varias</h3><p class="note">${gr.length} producto(s), ${gr.reduce((s,x)=>s+x.cant,0)} unidad(es)${docs.some(d=>d.dia!==dia(Date.now()))?' · incluye días anteriores':''}. Se hace una sola factura a Consumidor final.</p>
+ <div style="max-height:40vh;overflow:auto">${gr.map(x=>`<div class="tot"><span>${x.cant} × ${esc(x.nom)}</span><span>${L(x.precio*x.cant)}</span></div>`).join('')}</div>
+ <div class="tot big" style="border-color:var(--ink)"><span>Total</span><span>${L(T.t)}</span></div>
+ <p class="note" style="margin:12px 0 6px">¿Cómo se cobró?</p><div class="pagos" id="vfPago" style="grid-template-columns:repeat(3,1fr)"><button class="on" data-p="Efectivo">Efectivo</button><button data-p="Tarjeta">Tarjeta</button><button data-p="Transferencia">Transf.</button></div>
+ <div class="row"><button class="ghost" id="vfX">Cancelar</button><button class="pri" id="vfOk">Facturar ${L(T.t)}</button></div>`);
+ $('#vfPago').onclick=e=>{const b=e.target.closest('button');if(!b)return;pg=b.dataset.p;$$('#vfPago button').forEach(x=>x.classList.toggle('on',x===b))};
+ $('#vfX').onclick=()=>$('#dlg').close();
+ $('#vfOk').onclick=async()=>{const b=$('#vfOk');b.disabled=true;b.textContent='Facturando…';
+  try{const nf=await api('siguiente',{});const now=new Date(),vref=db.collection('ventas').doc();
+   const v={num:nf.num,factura:nf.factura,equipo:EST.equipo||'',fecha:now.toISOString(),ts:now.getTime(),dia:dia(now),cliente:'Consumidor final',rtn:'',pago:pg,recibido:T.t,tel:'',vence:'',abonos:{},items:gr,total:+T.t.toFixed(2),b15:+T.b15.toFixed(2),i15:+T.i15.toFixed(2),b18:+T.b18.toFixed(2),i18:+T.i18.toFixed(2),ex:+T.ex.toFixed(2),vendedor:S?.id||'',vendNom:S?.nombre||'',anulada:false,varias:true,variasDias:[...new Set(docs.map(d=>d.dia))]};
+   await vref.set(v);
+   for(const d of docs)await db.doc('abiertas/'+d.id).update({facturada:true,factura:v.factura,ventaId:vref.id,facturadaTs:Date.now(),facturadaPor:S?.nombre||''});
+   showRcpt({...v,id:vref.id});if(autoPrint.get())imprimir(rcptHTML(v),v.factura)}
+  catch(er){toast('No se pudo facturar: '+er.message);b.disabled=false;b.textContent='Facturar'}};
+}
+
 /* ---------- ARRANQUE ---------- */
 renderPOS();renderCart();renderInv();renderV();renderCR();
 function iniciarDatos(){
@@ -1038,7 +1101,8 @@ function iniciarDatos(){
   cart=cart.filter(it=>P.some(p=>p.id===it.id));renderPOS();renderCart();renderInv();renderV();renderSugBtn()},e=>toast(e.message));
  db.collection('ventas').where('pago','==','Crédito').limit(20000).onSnapshot(s=>{CR=s.docs.map(d=>({id:d.id,...d.data()}));renderCR();renderV();renderCaja();renderRep()},()=>{});
  db.doc('ajustes/negocio').onSnapshot(s=>{AJ=s.exists?s.data():{};renderAj()},()=>{});
- subV();subCaja();if(admin){cargarUsuarios();cargarBk();cargarSug();subRep()}
+ subV();subCaja();
+ db.collection('abiertas').where('facturada','==',false).onSnapshot(s=>{AB=s.docs.map(d=>({id:d.id,...d.data()}));renderVarias();renderCaja()},()=>{});if(admin){cargarUsuarios();cargarBk();cargarSug();subRep()}
 }
 (async()=>{
  await cargarEstado();
