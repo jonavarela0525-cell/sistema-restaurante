@@ -16,7 +16,7 @@ process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 const IMP = require('./impresion.js');
 
-const VERSION = '2.5.0';
+const VERSION = '2.5.1';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante'; // usuario/repositorio en GitHub
 const BASE = __dirname;
 const DATA_DIR = path.join(BASE, 'datos');

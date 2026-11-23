@@ -277,7 +277,7 @@ function abrirCobro(){
   const m=S.mesas[S.mesaAbierta];const items=m.items||[];if(!items.length)return;
   const t=calc(items);const n=S.negocio;const pct=num(n.servicioPct??10);const conCAI=!!(n.cai&&n.rangoDesde&&n.rangoHasta);
   openModal(`<h2>Cobrar · ${esc(m.nombre)}</h2>
-   ${conCAI?'':'<div class="banner w">Aún no configuraste el CAI en Ajustes: se emitirá un <b>comprobante interno</b> (no válido como factura fiscal).</div>'}
+   ${conCAI?'':'<p class="mute" style="margin:0 0 6px">Factura sin CAI (numeración interna). Cuando registres tu CAI en Ajustes, se usará la numeración autorizada por el SAR.</p>'}
    <table class="t" style="margin-top:8px">
     ${t.exento?`<tr><td>Importe exento</td><td class="r">${L(t.exento)}</td></tr>`:''}
     ${t.gravado15?`<tr><td>Gravado 15%</td><td class="r">${L(t.gravado15)}</td></tr><tr><td>ISV 15%</td><td class="r">${L(t.isv15)}</td></tr>`:''}
@@ -347,7 +347,7 @@ function facturaHTML(f){
   const e=f.emisor||{};const fe=new Date(f.fecha);
   return `<div class="inv">
    ${S.negocio.logoFactura!==false?`<div class="c">${logoImg('width:40mm;max-width:55%;display:block;margin:0 auto 4px')}</div>`:''}<div class="c"><b style="font-size:14px">${esc(e.nombre||'Restaurante')}</b>${e.razon?`<br>${esc(e.razon)}`:''}${e.rtn?`<br>RTN: ${esc(e.rtn)}`:''}${e.direccion?`<br>${esc(e.direccion)}`:''}${e.telefono||e.correo?`<br>${esc([e.telefono&&'Tel: '+e.telefono,e.correo].filter(Boolean).join(' · '))}`:''}</div><hr>
-   <div class="c"><b>${f.fiscal?'FACTURA':'COMPROBANTE INTERNO'}</b><br>No. ${esc(f.numero)}${f.fiscal?`<br>CAI: ${esc(e.cai)}`:'<br>(No válido como factura fiscal)'}</div>
+   <div class="c"><b>FACTURA</b><br>No. ${esc(f.numero)}${f.fiscal?`<br>CAI: ${esc(e.cai)}`:''}</div>
    ${f.anulada?'<div class="c" style="color:#b91c1c;font-weight:700;margin-top:6px">*** ANULADA ***</div>':''}<hr>
    Fecha: ${fe.toLocaleDateString('es-HN')} ${fe.toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})}<br>
    Mesa: ${esc(f.mesa)}<br>Cliente: ${esc(f.cliente)}<br>RTN cliente: ${esc(f.rtn||'—')}<br>Condición: ${f.metodo==='Crédito'?`<b>CRÉDITO ${esc(f.plazo)} días</b> · Vence: ${esc(fechaCorta(f.vence))}`:'Contado'}<hr>
@@ -372,7 +372,7 @@ function facturaHTML(f){
 function facturaTexto(f){
   const e=f.emisor||{};const fe=new Date(f.fecha);const ln=[];
   ln.push(e.nombre||'Restaurante');if(e.razon)ln.push(e.razon);if(e.rtn)ln.push('RTN: '+e.rtn);if(e.direccion)ln.push(e.direccion);if(e.telefono)ln.push('Tel: '+e.telefono);
-  ln.push('------------------------------');ln.push((f.fiscal?'FACTURA No. ':'COMPROBANTE INTERNO No. ')+f.numero);if(f.fiscal)ln.push('CAI: '+e.cai);if(f.anulada)ln.push('*** ANULADA ***');
+  ln.push('------------------------------');ln.push('FACTURA No. '+f.numero);if(f.fiscal)ln.push('CAI: '+e.cai);if(f.anulada)ln.push('*** ANULADA ***');
   ln.push('Fecha: '+fe.toLocaleString('es-HN'));ln.push('Mesa: '+f.mesa);ln.push('Cliente: '+f.cliente);ln.push('RTN cliente: '+(f.rtn||'—'));ln.push('Condición: '+(f.metodo==='Crédito'?`CRÉDITO ${f.plazo} días · Vence: ${fechaCorta(f.vence)}`:'Contado'));ln.push('------------------------------');
   (f.items||[]).forEach(it=>ln.push(`${it.cant} x ${it.nombre}  ${L(it.precio*it.cant)}`));
   ln.push('------------------------------');
@@ -405,7 +405,7 @@ function facturaCompacta(f){
   return `<div class="inv">
    ${S.negocio.logoFactura!==false?`<div class="c">${logoImg('width:20mm;display:block;margin:0 auto 1px')}</div>`:''}
    <div class="c"><b style="font-size:13px">${esc(e.nombre||'Restaurante')}</b>${e.razon?`<br>${esc(e.razon)}`:''}<br>${esc([e.rtn&&'RTN '+e.rtn,e.telefono&&'Tel '+e.telefono].filter(Boolean).join(' · '))}${e.direccion?`<br>${esc(e.direccion)}`:''}</div><hr>
-   <div class="c"><b>${fiscal?'FACTURA':'COMPROBANTE'} ${esc(f.numero)}</b>${fiscal?`<br>CAI ${esc(e.cai)}`:''}${f.anulada?'<br><b>*** ANULADA ***</b>':''}</div>
+   <div class="c"><b>FACTURA ${esc(f.numero)}</b>${fiscal?`<br>CAI ${esc(e.cai)}`:''}${f.anulada?'<br><b>*** ANULADA ***</b>':''}</div>
    ${fe.toLocaleDateString('es-HN')} ${fe.toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'})} · ${esc(f.mesa)}
    ${f.cliente&&f.cliente!=='Consumidor Final'||f.rtn?`<br>Cliente: ${esc(f.cliente)}${f.rtn?' · RTN '+esc(f.rtn):''}`:''}
    ${f.metodo==='Crédito'?`<br><b>CRÉDITO ${esc(f.plazo)} días · vence ${esc(fechaCorta(f.vence))}</b>`:''}<hr>
@@ -492,7 +492,7 @@ function escucharImpresiones(){
   colaImp=S.db.collection('impresiones').where('estado','==','pendiente').onSnapshot(snap=>{ultimaSnap=snap;procesarCola()});
 }
 function verFactura(f){
-  openModal(`<div class="row"><h2 class="sp">${f.fiscal?'Factura':'Comprobante'} ${esc(f.numero)}</h2><button class="btn sm" data-x="close">Cerrar</button></div>${facturaHTML(f)}
+  openModal(`<div class="row"><h2 class="sp">Factura ${esc(f.numero)}</h2><button class="btn sm" data-x="close">Cerrar</button></div>${facturaHTML(f)}
    <div class="row wrap" style="margin-top:12px"><button class="btn p" data-x="print">🖨️ Imprimir</button><button class="btn" data-x="dl">Descargar</button><button class="btn" data-x="copy">Copiar texto</button><span class="sp"></span>${!f.anulada&&S.isAdmin?'<button class="btn d" data-x="anular">Anular</button>':''}</div>`,
   sh=>{
     sh.querySelector('[data-x=close]').onclick=closeModal;

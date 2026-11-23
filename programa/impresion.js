@@ -134,7 +134,7 @@ function factura(f, o) {
   if (id) t.parrafo(id);
   if (e.direccion) t.parrafo(e.direccion);
   t.izq().linea();
-  t.centro().negrita(1).ln((f.fiscal ? 'FACTURA ' : 'COMPROBANTE ') + f.numero).negrita(0);
+  t.centro().negrita(1).ln('FACTURA ' + f.numero).negrita(0);
   if (f.fiscal) t.ln('CAI ' + (e.cai || ''));
   if (f.anulada) t.negrita(1).ln('*** ANULADA ***').negrita(0);
   t.izq().ln(horaHN(f.fecha) + ' - ' + (f.mesa || ''));
