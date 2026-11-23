@@ -1,0 +1,57 @@
+{
+ "version": "1.0.0",
+ "publicado": "2026-11-23T14:26:08",
+ "archivos": [
+  {
+   "nombre": "server.js",
+   "sha256": "2cbb1b5d50be99db6538e1b4342be8db87e43a85f4fe77fdf4351609fac50c77",
+   "bytes": 40198
+  },
+  {
+   "nombre": "app.html",
+   "sha256": "5b7270dc1f7a810939de61bd261477994eb6e15e737704ac28ab0693890f21cf",
+   "bytes": 41898
+  },
+  {
+   "nombre": "lanzador.js",
+   "sha256": "2d6f1fa4afc4091cfcf976893449da7056615c76a79ae8924a7b291beec9cbd3",
+   "bytes": 2477
+  },
+  {
+   "nombre": "iniciar.vbs",
+   "sha256": "776495994bc75b398c6547bb3441b79adb05b49731ac1fd63f162afd4f4f65da",
+   "bytes": 2101
+  },
+  {
+   "nombre": "servidor.vbs",
+   "sha256": "475f427d49f4311fba9fc02da2dda98878f352c80074adbbca691e2259834c65",
+   "bytes": 451
+  },
+  {
+   "nombre": "detener.ps1",
+   "sha256": "41349db5a80523a6ca76becbd8eb4545eeb55450c5c7c723d9a7cf9ca6495023",
+   "bytes": 1425
+  },
+  {
+   "nombre": "Detener sistema.bat",
+   "sha256": "cee61b5148c21981b235dc054c90bcd11a1e9602350329c2a523e715f888f50b",
+   "bytes": 118
+  },
+  {
+   "nombre": "instalar.ps1",
+   "sha256": "d8cf5684511a430fae1e8e70675b96fce332f808bdc0525a973fee591955eb9e",
+   "bytes": 3920
+  },
+  {
+   "nombre": "INSTALAR.bat",
+   "sha256": "1a66fde24532b560b00c7ca4f18f1f450417fb38844b650920e5c30894f7df2b",
+   "bytes": 135
+  },
+  {
+   "nombre": "LEEME.txt",
+   "sha256": "e22a99ff6f1ddffb292adb721046e525acf6d9e36fe230b4105160fd9c072fb9",
+   "bytes": 2972
+  }
+ ],
+ "cambios": "Primera versión: ingresos, egresos, cuentas por pagar y por cobrar, enlazado con Casa de la Birria y Vikingos."
+}

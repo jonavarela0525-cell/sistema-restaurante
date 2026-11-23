@@ -1,0 +1,62 @@
+﻿MIS FINANZAS - CONTROL PERSONAL
+===============================
+
+Para tu computadora personal. Funciona CON o SIN internet.
+Ves en un solo lugar:
+  - Ingresos: lo que cobran la Casa de la Birria y Vikingos Licor Store (ventas de contado
+    + abonos de créditos) y tus ingresos personales.
+  - Egresos: los gastos de caja de los dos negocios y tus gastos personales.
+  - Cuentas por pagar: préstamos, proveedores, alquiler, luz, tarjetas... con aviso de vencimiento,
+    pagos parciales y cuentas que se repiten cada mes.
+  - Por cobrar: los créditos pendientes de los clientes de los dos negocios.
+
+
+1. INSTALACIÓN (solo una vez, en tu computadora personal)
+---------------------------------------------------------
+a) Necesitas Node.js (ya lo tienes si en esta computadora está el sistema del restaurante o de Vikingos).
+b) Descomprime este ZIP (clic derecho -> "Extraer todo").
+c) Abre la carpeta y haz doble clic en INSTALAR.bat
+   - Si Windows muestra "Windows protegió su PC": "Más información" -> "Ejecutar de todas formas".
+d) Se abrirá Mis Finanzas. Crea tu PIN (4 a 8 números).
+
+Queda instalado en:  C:\Users\<tu usuario>\MisFinanzas
+Icono en el escritorio: "Mis Finanzas"
+
+
+2. ENLACE CON LOS SISTEMAS DE LOS NEGOCIOS
+-------------------------------------------
+Mis Finanzas lee directamente los datos de los sistemas instalados en ESTA computadora:
+  - C:\Users\<tu usuario>\SistemaRestaurante   (Casa de la Birria)
+  - C:\Users\<tu usuario>\SistemaVikingos      (Vikingos Licor Store)
+Como esos sistemas se sincronizan con la caja de cada negocio, aquí ves lo mismo que allá.
+Solo LEE: nunca cambia ventas, gastos ni inventario de los negocios.
+Si un sistema está en otra carpeta, escríbela en Ajustes -> "Conexión con los sistemas".
+
+
+3. CÓMO SE CUENTA EL DINERO
+---------------------------
+- Ventas de contado: cuentan como ingreso el día de la venta.
+- Ventas al crédito: cuentan como ingreso cuando el cliente abona (así no se cuenta dos veces).
+- Facturas y gastos anulados no se cuentan.
+- Gastos de caja registrados en cada negocio: cuentan como egreso de ese negocio.
+- Al pagar una cuenta por pagar, el pago se guarda solo como egreso.
+
+
+4. RESPALDOS
+------------
+- Tus datos:  MisFinanzas\datos\finanzas.db
+- Respaldos:  MisFinanzas\respaldos\  (al abrir y cada 6 horas; guarda los últimos 60)
+- Copia fuera de la computadora (recomendado): abre MisFinanzas\config.json con el Bloc de notas y escribe
+      "carpetaRespaldoExtra": "C:/Users/TuUsuario/OneDrive/RespaldosFinanzas"
+  Usa barras normales  /  . Guarda y reinicia la computadora.
+
+
+5. SEGURIDAD
+------------
+- Solo se puede abrir desde esta computadora (no desde celulares ni desde la red).
+- Pide tu PIN. Si lo olvidas, pide ayuda para restablecerlo: tus datos no se pierden.
+
+
+6. ACTUALIZACIONES
+------------------
+Se actualiza solo por internet (desde GitHub), igual que los sistemas de los negocios.

@@ -11,3 +11,5 @@ lleguen completos y se actualizan solas cuando no hay mesas abiertas.
 - `programa/`: archivos del sistema.
 
 La carpeta `vikingos/` contiene el sistema de **Vikingos Licor Store**, con su propio `version.json`.
+
+La carpeta `finanzas/` contiene **Mis Finanzas** (control personal del dueño), con su propio `version.json`.
