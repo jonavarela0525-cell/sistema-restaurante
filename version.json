@@ -1,11 +1,11 @@
 {
- "version": "2.4.0",
- "publicado": "2026-11-22T19:54:05",
+ "version": "2.4.1",
+ "publicado": "2026-11-22T22:04:50",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "b4b2674eddf139d6ec79ea58372d155cfbc19f8eb785a2daf89a3218c9c14205",
-   "bytes": 57510
+   "sha256": "4e6de27552c56a3622d304a3fb82c4621e5f9ff58d2e4ce93b6893fdb0da09bf",
+   "bytes": 58894
   },
   {
    "nombre": "app.html",

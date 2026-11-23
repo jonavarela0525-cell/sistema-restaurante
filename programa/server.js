@@ -16,7 +16,7 @@ process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 const IMP = require('./impresion.js');
 
-const VERSION = '2.4.0';
+const VERSION = '2.4.1';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante'; // usuario/repositorio en GitHub
 const BASE = __dirname;
 const DATA_DIR = path.join(BASE, 'datos');
@@ -592,7 +592,7 @@ async function api(req, res, url) {
     if (!isAdmin(u)) throw err(403, 'Solo el administrador');
     const b = await body(req);
     const cols = [32, 42, 48, 56, 64].includes(Number(b.columnas)) ? Number(b.columnas) : 48;
-    CFG.impresora = { nombre: String(b.nombre || '').slice(0, 200), columnas: cols, acentos: b.acentos !== false };
+    CFG.impresora = { nombre: String(b.nombre || '').slice(0, 200), columnas: cols, acentos: b.acentos !== false, noDetectar: !b.nombre };
     guardarCfg(); log('Impresora directa:', CFG.impresora.nombre || '(ninguna)', cols, 'columnas');
     emitir(['__estado']);
     return send(res, 200, { ok: true, actual: CFG.impresora });
@@ -780,6 +780,20 @@ function bytesTrabajo(job) {
   if (job.tipo === 'prueba') return IMP.prueba({ ...o, logo: logoParaImprimir() }, neg.nombre);
   throw new Error('Tipo de impresión desconocido');
 }
+// si esta computadora cobra y no tiene impresora directa elegida, busca sola una térmica
+async function detectarImpresora() {
+  if (process.platform !== 'win32' || CFG.impresora.nombre || CFG.impresora.noDetectar || CFG.facturaEnEsteEquipo === false) return;
+  try {
+    const lista = await IMP.listarImpresoras();
+    const NO = /pdf|xps|onenote|fax|enviar a|send to|anydesk|microsoft print/i;
+    const SI = /(pos|xp-?\s?\d|80\s?mm|58\s?mm|thermal|t[eé]rmica|receipt|recibo|ticket|tm-?[tm]\d|tm-?t|rp-?\d|zj-?\d|gprinter|3nstar|bixolon|tsp\d|epson tm|sat\s?\d|xprinter|hprt|rongta|sewoo|citizen ct)/i;
+    const cand = lista.filter(p => p && p.nombre && !NO.test(p.nombre + ' ' + (p.driver || '')) && SI.test(p.nombre + ' ' + (p.driver || '')));
+    if (!cand.length) { log('Impresión directa: no se encontró una impresora térmica; elígela en Ajustes → Impresora.'); return; }
+    const elegida = cand.find(p => p.predeterminada) || cand[0];
+    CFG.impresora = { nombre: elegida.nombre, columnas: /58\s?mm|zj-?58|pos-?58/i.test(elegida.nombre + ' ' + (elegida.driver || '')) ? 32 : 48, acentos: true };
+    guardarCfg(); log('Impresión directa activada automáticamente en:', elegida.nombre); emitir(['__estado']);
+  } catch (e) { log('Impresión directa: no se pudo revisar las impresoras:', e.message); }
+}
 async function imprimirDirecto(job) {
   if (!CFG.impresora.nombre) throw new Error('No hay impresora configurada');
   await IMP.enviar(CFG.impresora.nombre, bytesTrabajo(job), DATA_DIR);
@@ -947,6 +961,7 @@ server.listen(CFG.puerto, '0.0.0.0', () => {
   log(`En esta computadora: http://localhost:${CFG.puerto}`);
   for (const ip of ips()) log(`Desde celulares (mismo WiFi): http://${ip}:${CFG.puerto}`);
   respaldo('inicio');
+  setTimeout(detectarImpresora, 4000);
   if (CFG.actualizacionesAutomaticas !== false) {
     setTimeout(() => revisarActualizacion(false), 60 * 1000);
     setInterval(() => revisarActualizacion(false), 60 * 60 * 1000);
