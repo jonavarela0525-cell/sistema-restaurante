@@ -15,7 +15,7 @@ const crypto = require('crypto');
 process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante'; // usuario/repositorio en GitHub
 const BASE = __dirname;
 const DATA_DIR = path.join(BASE, 'datos');
@@ -207,7 +207,7 @@ function checkWrite(u, op, p, data, existe) {
     case 'config': NO(); break; // el correlativo solo se toca con /api/siguiente
     case 'platos': case 'cierres': NO(); break;
     case 'insumos': NO(); break; // el stock se mueve con /api/stock
-    case 'mesas': if (op !== 'update' || !soloClaves(data, ['items', 'abiertaEn', 'mesero', 'enviados'])) NO(); break;
+    case 'mesas': if (op !== 'update' || !soloClaves(data, ['items', 'abiertaEn', 'mesero', 'enviados', 'cliente'])) NO(); break;
     case 'facturas':
       if (op === 'set' && !existe) return;
       if (op === 'update' && existe && soloClaves(data, ['abonos']) && isObj(data.abonos) && Object.values(data.abonos).every(v => Number(v) > 0)) return;
@@ -562,7 +562,7 @@ async function api(req, res, url) {
       const numero = cont.dia === dia ? (cont.n || 0) + 1 : 1;
       setMeta('comandas', JSON.stringify({ dia, n: numero }));
       const mu = m.mesero ? readDoc('usuarios/' + m.mesero) : null;
-      const comanda = { numero, mesa: m.nombre, mesero: (mu && mu.nombre) || u.nombre, hora: ahora.toISOString(), lineas };
+      const comanda = { numero, mesa: m.nombre, cliente: String(m.cliente || '').slice(0, 60), mesero: (mu && mu.nombre) || u.nombre, hora: ahora.toISOString(), lineas };
       writeDoc('impresiones/' + crypto.randomUUID().slice(0, 16), { tipo: 'comanda', comanda, estado: 'pendiente', creado: ahora.toISOString(), por: u.id });
       return comanda;
     });
