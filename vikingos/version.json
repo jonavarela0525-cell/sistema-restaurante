@@ -1,16 +1,31 @@
 {
- "version": "1.6.0",
- "publicado": "2026-11-23T11:20:03",
+ "version": "1.7.0",
+ "publicado": "2026-11-23T13:47:00",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "4ae4a370b65a76afb67d33fa4d19fccc23aa74116c020a6f175a0f6390f6ecf6",
-   "bytes": 46104
+   "sha256": "4660135e66701b1ef2a9986617e26ee54499e793b15969028b8e58307ef258e5",
+   "bytes": 50327
+  },
+  {
+   "nombre": "logo_ticket.js",
+   "sha256": "70c9d775bb4e1baf93269c6d7dc69a0b1bf2c2aead70b0374358610ebdebd84b",
+   "bytes": 10426
+  },
+  {
+   "nombre": "imprimir.ps1",
+   "sha256": "9f81e9a34eca95caf6f0adb06da3cc2df58ebd1e8ab34311197f92241fee9144",
+   "bytes": 3232
+  },
+  {
+   "nombre": "impresion.js",
+   "sha256": "609164be78e7fcc144866f18644e347a039040f83b751c88979e40d4b4a9929c",
+   "bytes": 16389
   },
   {
    "nombre": "app.html",
-   "sha256": "e5db7de5a4bfffc97591a78417211bd5edce04df91ba2bb375fb3851a5e7eeae",
-   "bytes": 226627
+   "sha256": "092311e5be87eb589cdfaa167e8918053ef469b310ea2d85dc1775129ce6d4e0",
+   "bytes": 232750
   },
   {
    "nombre": "lanzador.js",
@@ -58,5 +73,5 @@
    "bytes": 44609
   }
  ],
- "cambios": "Paquetes enlazados a la unidad (ej. cajetilla de 20 cigarros): comparten la existencia en unidades."
+ "cambios": "Impresión directa en la térmica (ESC/POS): sin espacios en blanco y con corte automático, igual que la Casa de la Birria."
 }

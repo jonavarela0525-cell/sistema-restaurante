@@ -367,7 +367,7 @@ $('#cobrar').onclick=async()=>{
   await vref.set(v);
   for(const [i,it] of cart.entries()){const d=destIt(it,it.cant);await db.doc('productos/'+d.pid).update({movs:{['v'+vref.id+'_'+i]:-d.q}})}
   cart=[];nivel='n';$$('#niveles button').forEach(x=>x.classList.toggle('on',x.dataset.n==='n'));$('#rec').value='';$('#cli').value='';$('#rtn').value='';$('#ctel').value='';$('#cven').value='';renderCart();renderPOS();
-  showRcpt({...v,id:vref.id});if(autoPrint.get())imprimir(rcptHTML(v),v.factura);
+  showRcpt({...v,id:vref.id});if(autoPrint.get())imprimirFactura({...v,id:vref.id});
  }catch(e){toast(e.code==='invalid_argument'?'No tienes permiso para registrar ventas.':(e.message||'Error al guardar la venta'))}
  btn.disabled=false;btn.textContent='Cobrar';
 };
@@ -390,7 +390,7 @@ function showRcpt(v){
  dlg(`<h3>Venta registrada</h3>${rcptHTML(v)}<div class="row"><button class="ghost" id="rcCopy">Copiar texto</button><button class="ghost" id="rcDl">Imprimir</button><button class="pri" id="rcOk">Nueva venta</button></div>`);
  $('#rcOk').onclick=()=>{$('#dlg').close();$('#q').focus()};
  $('#rcCopy').onclick=async()=>{try{await navigator.clipboard.writeText(rcptText(v));toast('Copiado')}catch{toast('No se pudo copiar')}};
- $('#rcDl').onclick=()=>imprimir(rcptHTML(v),v.factura);
+ $('#rcDl').onclick=()=>imprimirFactura(v);
 }
 function dlg(h){$('#dlgB').innerHTML=h;const d=$('#dlg');if(!d.open)d.showModal()}
 $('#dlg').addEventListener('click',e=>{if(e.target.id==='dlg')e.target.close()});
@@ -551,7 +551,7 @@ function comprobante(c){
  <div class="row"><button class="ghost" id="abCp">Copiar texto</button><button class="ghost" id="abDl">Imprimir</button><button class="pri" id="abC">Listo</button></div>`);
  $('#abC').onclick=()=>$('#dlg').close();
  $('#abCp').onclick=async()=>{try{await navigator.clipboard.writeText(`${AJ.nombre||'Vikingos Licor Store'}\n${c.total?'Cancelación de crédito':'Abono a crédito'}\nCliente: ${c.cliente}\n${c.det.map(d=>'Factura '+d.f+': '+L(d.ap)).join('\n')}\nPagado: ${L(c.m)} (${c.pago})\nSaldo pendiente: ${L(c.despues)}`);toast('Copiado')}catch(e){toast('No se pudo copiar')}};
- $('#abDl').onclick=()=>imprimir($('#dlgB .rcpt').outerHTML,'Comprobante');
+ $('#abDl').onclick=()=>imprimirTicket([{t:'t',a:AJ.nombre||'Vikingos Licor Store'},...(AJ.rtn?[{t:'c',a:'RTN '+AJ.rtn}]:[]),{t:'c',a:c.total?'COMPROBANTE DE CANCELACIÓN':'COMPROBANTE DE ABONO'},{t:'s',a:'Cliente: '+c.cliente},{t:'p',a:'Fecha: '+new Date(c.ts).toLocaleString('es-HN')},{t:'p',a:'Recibió: '+(S?.nombre||'')},{t:'s',a:'Facturas'},...c.det.map(d=>({t:'f',a:d.f+' (saldo '+L(d.antes)+')',b:'- '+L(d.ap)})),{t:'s',a:'Resumen'},{t:'f',a:'Saldo anterior',b:L(c.antes)},{t:'f',a:'Pagado ('+c.pago+')',b:L(c.m)},...(c.rec>c.m?[{t:'f',a:'Recibido',b:L(c.rec)},{t:'f',a:'Cambio',b:L(c.rec-c.m)}]:[]),{t:'f',a:'Saldo pendiente',b:L(c.despues),n:1},...(c.despues<=0?[{t:'c',a:'*** CUENTA CANCELADA ***'}]:[]),{t:'p',a:' '},{t:'p',a:'Firma: ____________________________'}],$('#dlgB .rcpt').outerHTML,'Comprobante');
 }
 function renderV(){
  const list=inRange(),ok=list.filter(v=>!v.anulada);
@@ -642,6 +642,12 @@ async function save(filename,data){const b=new Blob([data],{type:filename.endsWi
 function imprimir(inner,titulo){
  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(titulo||'Factura')}</title><style>body{margin:0}${RC_CSS}.rcpt{border:0;max-width:80mm;width:72mm}</style></head><body>${inner}<script>window.onload=function(){var h=Math.ceil(document.body.scrollHeight*25.4/96)+6;var s=document.createElement('style');s.textContent='@page{size:80mm '+Math.max(60,h)+'mm;margin:0}';document.head.appendChild(s);setTimeout(function(){window.print()},150)}<\/script></body></html>`;
  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);f.srcdoc=html;setTimeout(()=>f.remove(),60000)}
+async function imprimirFactura(v){
+ if(EST.impresoraDirecta&&v&&v.id){try{await api('imprimir',{tipo:'factura',ventaId:v.id});toast('Factura enviada a la impresora');return}catch(e){toast('Impresora térmica: '+e.message)}}
+ imprimir(rcptHTML(v),v.factura)}
+async function imprimirTicket(lineas,html,titulo){
+ if(EST.impresoraDirecta){try{await api('imprimir',{tipo:'reporte',lineas});toast('Enviado a la impresora');return}catch(e){toast('Impresora térmica: '+e.message)}}
+ imprimir(html,titulo)}
 const autoPrint={get(){try{return localStorage.getItem('vk_autoprint')==='1'}catch(e){return false}},set(v){try{localStorage.setItem('vk_autoprint',v?'1':'0')}catch(e){}}};
 
 /* ---------- ESTADO, ENLACE Y SESIÓN ---------- */
@@ -756,7 +762,7 @@ function userForm(id){
 }
 
 /* ajustes de este equipo: enlace, impresión, respaldos, actualizaciones */
-let UPDI={},BKI={};
+let UPDI={},BKI={},IMPI={};
 function renderEquipo(){
  const box=$('#equipoBox');if(!box||!admin)return;
  const y=EST.sync||{};
@@ -767,6 +773,14 @@ function renderEquipo(){
  <p class="note w" style="margin:0">Cada computadora que factura necesita su propio prefijo (por ejemplo 000-001-01- en la tienda y 000-002-01- en la personal) para que los números nunca se repitan.</p>
  <label class="w"><span><input type="checkbox" id="chkAuto" style="width:auto;min-height:0;margin-right:8px" ${autoPrint.get()?'checked':''}>Imprimir la factura automáticamente al cobrar (en este dispositivo)</span></label>
  <div class="w"><button class="pri" type="submit">Guardar</button></div></form>
+
+ <h2 style="margin-top:28px">Impresora térmica</h2>
+ <p class="note" style="max-width:70ch">${EST.impresoraDirecta?`Imprimiendo directo en <b>${esc(EST.impresora)}</b>: la factura sale del largo exacto, sin espacios en blanco y con corte automático. Los celulares también imprimen aquí.`:(EST.windows===false?'La impresión directa solo funciona en la computadora con Windows donde está la impresora.':'Todavía no hay impresora térmica elegida: se imprime desde el navegador. Elige la térmica para imprimir directo, sin espacios en blanco.')}</p>
+ <div id="impBox">${IMPI.cargada?(IMPI.error?`<p class="note" style="color:var(--warn)">${esc(IMPI.error)}</p>`:`<form class="form" id="fImp"><label class="w">Impresora<select name="nombre"><option value="">(ninguna: imprimir desde el navegador)</option>${(IMPI.lista||[]).map(p=>`<option value="${esc(p.nombre)}" ${p.nombre===(IMPI.actual||{}).nombre?'selected':''}>${esc(p.nombre)}${p.predeterminada?' (predeterminada)':''}</option>`).join('')}</select></label>
+ <label>Tamaño del papel<select name="columnas"><option value="48" ${(IMPI.actual||{}).columnas!=32?'selected':''}>80 mm (48 letras por línea)</option><option value="32" ${(IMPI.actual||{}).columnas==32?'selected':''}>58 mm (32 letras por línea)</option><option value="42" ${(IMPI.actual||{}).columnas==42?'selected':''}>80 mm letra grande (42)</option></select></label>
+ <label>Acentos y ñ<select name="acentos"><option value="1" ${(IMPI.actual||{}).acentos!==false?'selected':''}>Sí, la impresora los muestra bien</option><option value="0" ${(IMPI.actual||{}).acentos===false?'selected':''}>No, salen símbolos raros</option></select></label>
+ <div class="w row" style="justify-content:flex-start;margin:0"><button class="pri" type="submit">Guardar impresora</button></div></form>`):''}
+ <div class="row" style="justify-content:flex-start"><button class="ghost" id="impBuscar">${IMPI.cargada?'Volver a buscar impresoras':'Elegir impresora'}</button>${EST.impresoraDirecta?'<button class="ghost" id="impPrueba">Imprimir prueba</button>':''}</div></div>
 
  <h2 style="margin-top:28px">Enlace entre computadoras</h2>
  <p class="note" id="syncInfo" style="max-width:70ch">${y.configurado?`Enlazado con <b>${esc(y.repo)}</b>. Estado: <b>${esc(y.estado)}</b>${y.error?' · <span style="color:var(--warn)">'+esc(y.error)+'</span>':''}. Última sincronización: ${hace(y.ultimo)}.${y.pendientes?' Cambios por enviar: '+y.pendientes+'.':''}`:'Este equipo todavía no está enlazado. Todo funciona igual, pero las ventas solo quedan aquí.'}</p>
@@ -785,6 +799,9 @@ function renderEquipo(){
  <p class="note">Versión instalada: <b>${esc(EST.version||'')}</b>. ${UPDI.estado?'Estado: '+esc(UPDI.estado)+(UPDI.error?' ('+esc(UPDI.error)+')':'')+'.':''} El sistema revisa cada hora si hay una versión nueva y se actualiza solo cuando no hay ventas en curso.</p>
  <div class="row" style="justify-content:flex-start"><button class="ghost" id="upNow">Buscar actualización ahora</button></div>`;
  $('#fEq').onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));autoPrint.set($('#chkAuto').checked);try{await api('equipo',{equipo:d.equipo,prefijo:d.prefijo});toast('Guardado');cargarEstado()}catch(er){toast(er.message)}};
+ $('#impBuscar').onclick=async e=>{e.target.disabled=true;e.target.textContent='Buscando impresoras…';try{IMPI={cargada:true,...await api('impresoras')}}catch(er){IMPI={cargada:true,error:er.message}}renderEquipo()};
+ if($('#impPrueba'))$('#impPrueba').onclick=async()=>{try{await api('imprimir',{tipo:'prueba'});toast('Prueba enviada a la impresora')}catch(er){toast(er.message)}};
+ if($('#fImp'))$('#fImp').onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));try{const r=await api('impresora',{nombre:d.nombre,columnas:+d.columnas,acentos:d.acentos==='1'});IMPI.actual=r.actual;await cargarEstado();toast(r.actual.nombre?'Impresión directa activada':'Se imprimirá desde el navegador');renderEquipo()}catch(er){toast(er.message)}};
  $('#fSync').onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(!d.token){toast('Pega la clave (token) de GitHub');return}const bt=e.target.querySelector('[type=submit]');bt.disabled=true;bt.textContent='Comprobando…';
   try{await api('sync',{accion:'configurar',repo:d.repo,token:d.token});toast('Enlace guardado');await cargarEstado()}catch(er){toast(er.message)}bt.disabled=false;renderEquipo()};
  if(y.configurado){$('#syNow').onclick=async()=>{toast('Sincronizando…');try{await api('sync',{accion:'ahora'});await cargarEstado();toast(EST.sync?.error||'Sincronizado')}catch(er){toast(er.message)}};
@@ -997,7 +1014,8 @@ $('#arq').oninput=()=>renderCaja();
 $('#aqGuardar').onclick=async()=>{const c=cuentaCaja(),k=+contado().toFixed(2);const conteo={};DENOM.forEach(d=>{const v=+($('#aq_'+String(d).replace('.','_')).value||0);if(v)conteo[String(d)]=v});
  try{await db.doc('arqueos/'+cajaDia+'_'+eqKey(cajaEq)).set({dia:cajaDia,equipo:cajaEq,fondo:c.fondo,conteo,contado:k,esperado:+c.esperado.toFixed(2),diferencia:+(k-c.esperado).toFixed(2),ventasEf:c.ef,abonosEf:c.abEf,gastosEf:c.gEf,tarjeta:c.tj,transferencia:c.tr,credito:c.cr,nota:$('#aqNota').value.trim(),por:S?.nombre||'',porId:S?.id||'',ts:Date.now()});toast('Arqueo guardado')}catch(er){toast(er.message)}};
 $('#aqPrint').onclick=()=>{const c=cuentaCaja(),k=contado(),dif=k-c.esperado,r=(a,b)=>`<div class="rw"><span>${a}</span><span>${b}</span></div>`;
- imprimir(`<div class="rcpt"><div class="c"><b>${esc(AJ.nombre||'Vikingos Licor Store')}</b><br>ARQUEO DE CAJA</div><hr><div>Fecha: ${new Date().toLocaleString('es-HN')}</div><div>Caja: ${esc(cajaEq)}</div><div>Hecho por: ${esc(S?.nombre||'')}</div><hr>${r('Fondo inicial',L(c.fondo))}${r('+ Ventas efectivo',L(c.ef))}${r('+ Abonos efectivo',L(c.abEf))}${r('- Gastos efectivo',L(c.gEf))}${r('<b>Debe haber</b>','<b>'+L(c.esperado)+'</b>')}<hr>${DENOM.map(d=>{const n=+($('#aq_'+String(d).replace('.','_')).value||0);return n?r(n+' x L '+d,L(n*d)):''}).join('')}${r('<b>Contado</b>','<b>'+L(k)+'</b>')}<hr><div class="rw" style="font-weight:700;font-size:16px"><span>${Math.abs(dif)<0.01?'CUADRA':dif<0?'FALTANTE':'SOBRANTE'}</span><span>${L(Math.abs(dif))}</span></div><hr>${r('Tarjeta',L(c.tj))}${r('Transferencias',L(c.tr))}${r('Crédito',L(c.cr))}${$('#aqNota').value?'<div>Nota: '+esc($('#aqNota').value)+'</div>':''}<br><br><div class="c">_______________________<br>Firma</div></div>`,'Arqueo')};
+ const LS=[{t:'t',a:AJ.nombre||'Vikingos Licor Store'},{t:'c',a:'ARQUEO DE CAJA'},{t:'c',a:new Date().toLocaleString('es-HN')+' · '+cajaEq},{t:'p',a:'Hecho por: '+(S?.nombre||'')},{t:'s',a:'Efectivo esperado'},{t:'f',a:'Fondo inicial',b:L(c.fondo)},{t:'f',a:'+ Ventas en efectivo',b:L(c.ef)},{t:'f',a:'+ Abonos en efectivo',b:L(c.abEf)},{t:'f',a:'- Gastos en efectivo',b:L(c.gEf)},{t:'f',a:'Debe haber',b:L(c.esperado),n:1},{t:'s',a:'Conteo'},...DENOM.map(d=>{const n=+($('#aq_'+String(d).replace('.','_')).value||0);return n?{t:'f',a:n+' x L '+d,b:L(n*d)}:null}).filter(Boolean),{t:'f',a:'Contado',b:L(k),n:1},{t:'s',a:Math.abs(dif)<0.01?'CUADRA':(dif<0?'FALTANTE ':'SOBRANTE ')+L(Math.abs(dif))},{t:'f',a:'Tarjeta',b:L(c.tj)},{t:'f',a:'Transferencias',b:L(c.tr)},{t:'f',a:'Crédito',b:L(c.cr)},...($('#aqNota').value?[{t:'p',a:'Nota: '+$('#aqNota').value}]:[]),{t:'p',a:' '},{t:'p',a:'Firma: ____________________________'}];
+ imprimirTicket(LS,`<div class="rcpt"><div class="c"><b>${esc(AJ.nombre||'Vikingos Licor Store')}</b><br>ARQUEO DE CAJA</div><hr><div>Fecha: ${new Date().toLocaleString('es-HN')}</div><div>Caja: ${esc(cajaEq)}</div><div>Hecho por: ${esc(S?.nombre||'')}</div><hr>${r('Fondo inicial',L(c.fondo))}${r('+ Ventas efectivo',L(c.ef))}${r('+ Abonos efectivo',L(c.abEf))}${r('- Gastos efectivo',L(c.gEf))}${r('<b>Debe haber</b>','<b>'+L(c.esperado)+'</b>')}<hr>${DENOM.map(d=>{const n=+($('#aq_'+String(d).replace('.','_')).value||0);return n?r(n+' x L '+d,L(n*d)):''}).join('')}${r('<b>Contado</b>','<b>'+L(k)+'</b>')}<hr><div class="rw" style="font-weight:700;font-size:16px"><span>${Math.abs(dif)<0.01?'CUADRA':dif<0?'FALTANTE':'SOBRANTE'}</span><span>${L(Math.abs(dif))}</span></div><hr>${r('Tarjeta',L(c.tj))}${r('Transferencias',L(c.tr))}${r('Crédito',L(c.cr))}${$('#aqNota').value?'<div>Nota: '+esc($('#aqNota').value)+'</div>':''}<br><br><div class="c">_______________________<br>Firma</div></div>`,'Arqueo')};
 
 /* ---------- REPORTE DIARIO ---------- */
 let RV=[],RG=[],RA=[],unR=[];
@@ -1037,7 +1055,8 @@ function renderRep(){
 }
 $('#rpDia').onchange=subRep;$('#rpEq').onchange=renderRep;
 $('#rpPrint').onclick=()=>{const R=datosRep(),r=(a,b)=>`<div class="rw"><span>${a}</span><span>${b}</span></div>`;
- imprimir(`<div class="rcpt"><div class="c"><b>${esc(AJ.nombre||'Vikingos Licor Store')}</b><br>REPORTE DEL DÍA ${esc(fmtD(R.d))}</div><div class="c">${esc(R.eq||'Todas las cajas')}</div><hr>${r('Facturas',R.n)}${r('<b>Ventas</b>','<b>'+L(R.venta)+'</b>')}${Object.entries(R.pagos).map(([k,v])=>r('&nbsp; '+esc(k),L(v))).join('')}${r('ISV cobrado',L(R.isv))}${r('Abonos recibidos',L(R.abTot))}<hr>${r('Costo vendido',L(R.costo))}${r('Ganancia bruta',L(R.gan))}${r('Gastos',L(R.gTot))}${r('<b>Utilidad</b>','<b>'+L(R.util)+'</b>')}<hr>${R.arq.map(a=>r('Arqueo '+esc(a.equipo),Math.abs(a.diferencia)<0.01?'Cuadra':(a.diferencia<0?'-':'+')+L(Math.abs(a.diferencia)))).join('')}${R.an.length?r('Anuladas',R.an.length):''}<hr>${R.prod.slice(0,15).map(p=>r(p.c+' '+esc(p.nom).slice(0,22),L(p.m))).join('')}<div class="c" style="margin-top:6px">Impreso ${new Date().toLocaleString('es-HN')}</div></div>`,'Reporte')};
+ const LS=[{t:'t',a:AJ.nombre||'Vikingos Licor Store'},{t:'c',a:'REPORTE DEL DÍA '+fmtD(R.d)},{t:'c',a:R.eq||'Todas las cajas'},{t:'s',a:'Ventas'},{t:'f',a:'Facturas',b:String(R.n)},{t:'f',a:'Total vendido',b:L(R.venta),n:1},...Object.entries(R.pagos).map(([k,v])=>({t:'f',a:'  '+k,b:L(v)})),{t:'f',a:'ISV cobrado',b:L(R.isv)},{t:'f',a:'Abonos recibidos',b:L(R.abTot)},{t:'s',a:'Resultado'},{t:'f',a:'Costo de lo vendido',b:L(R.costo)},{t:'f',a:'Ganancia bruta',b:L(R.gan)},{t:'f',a:'Gastos',b:L(R.gTot)},{t:'f',a:'Utilidad del día',b:L(R.util),n:1},...(R.gs.length?[{t:'s',a:'Gastos'},...R.gs.map(g=>({t:'f',a:g.desc,b:L(g.monto)}))]:[]),{t:'s',a:'Arqueo'},...(R.arq.length?R.arq.map(a=>({t:'f',a:a.equipo+' ('+a.por+')',b:Math.abs(a.diferencia)<0.01?'Cuadra':(a.diferencia<0?'Falta ':'Sobra ')+L(Math.abs(a.diferencia))})):[{t:'p',a:'No se guardó arqueo'}]),...(R.an.length?[{t:'f',a:'Facturas anuladas',b:String(R.an.length)}]:[]),{t:'s',a:'Productos vendidos'},...R.prod.map(p=>({t:'f',a:p.c+' '+p.nom,b:L(p.m)})),{t:'c',a:'Impreso '+new Date().toLocaleString('es-HN')}];
+ imprimirTicket(LS,`<div class="rcpt"><div class="c"><b>${esc(AJ.nombre||'Vikingos Licor Store')}</b><br>REPORTE DEL DÍA ${esc(fmtD(R.d))}</div><div class="c">${esc(R.eq||'Todas las cajas')}</div><hr>${r('Facturas',R.n)}${r('<b>Ventas</b>','<b>'+L(R.venta)+'</b>')}${Object.entries(R.pagos).map(([k,v])=>r('&nbsp; '+esc(k),L(v))).join('')}${r('ISV cobrado',L(R.isv))}${r('Abonos recibidos',L(R.abTot))}<hr>${r('Costo vendido',L(R.costo))}${r('Ganancia bruta',L(R.gan))}${r('Gastos',L(R.gTot))}${r('<b>Utilidad</b>','<b>'+L(R.util)+'</b>')}<hr>${R.arq.map(a=>r('Arqueo '+esc(a.equipo),Math.abs(a.diferencia)<0.01?'Cuadra':(a.diferencia<0?'-':'+')+L(Math.abs(a.diferencia)))).join('')}${R.an.length?r('Anuladas',R.an.length):''}<hr>${R.prod.slice(0,15).map(p=>r(p.c+' '+esc(p.nom).slice(0,22),L(p.m))).join('')}<div class="c" style="margin-top:6px">Impreso ${new Date().toLocaleString('es-HN')}</div></div>`,'Reporte')};
 $('#rpPdf').onclick=async()=>{const R=datosRep();try{save('Reporte-'+R.d+(R.eq?'-'+R.eq.replace(/[^\w]+/g,'_'):'')+'.pdf',await reportePDF(R));toast('Reporte guardado en Descargas')}catch(e){toast('No se pudo crear el PDF: '+e.message)}};
 async function reportePDF(R){
  const pdf=nuevoPDF(),W=pdf.W,H=pdf.H,M=40,WOOD='#2e1c13',BONE='#f4ead9',MUT='#7a6c60';let y=0,logo=null;try{logo=await imgAJpeg(LOGO,360)}catch(e){}
@@ -1112,7 +1131,7 @@ function facturarVarias(docs){
    const v={num:nf.num,factura:nf.factura,equipo:EST.equipo||'',fecha:now.toISOString(),ts:now.getTime(),dia:dia(now),cliente:'Consumidor final',rtn:'',pago:pg,recibido:T.t,tel:'',vence:'',abonos:{},items:gr,total:+T.t.toFixed(2),b15:+T.b15.toFixed(2),i15:+T.i15.toFixed(2),b18:+T.b18.toFixed(2),i18:+T.i18.toFixed(2),ex:+T.ex.toFixed(2),vendedor:S?.id||'',vendNom:S?.nombre||'',anulada:false,varias:true,variasDias:[...new Set(docs.map(d=>d.dia))]};
    await vref.set(v);
    for(const d of docs)await db.doc('abiertas/'+d.id).update({facturada:true,factura:v.factura,ventaId:vref.id,facturadaTs:Date.now(),facturadaPor:S?.nombre||''});
-   showRcpt({...v,id:vref.id});if(autoPrint.get())imprimir(rcptHTML(v),v.factura)}
+   showRcpt({...v,id:vref.id});if(autoPrint.get())imprimirFactura({...v,id:vref.id})}
   catch(er){toast('No se pudo facturar: '+er.message);b.disabled=false;b.textContent='Facturar'}};
 }
 

@@ -14,7 +14,7 @@ const crypto = require('crypto');
 process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante';
 const CARPETA_ACTUALIZACIONES = 'vikingos/';
 const BASE = __dirname;
@@ -27,10 +27,12 @@ const CFG_FILE = path.join(BASE, 'config.json');
 let CFG = {
   puerto: 8081, carpetaRespaldoExtra: '', respaldosAGuardar: 60, horasEntreRespaldos: 2,
   actualizacionesAutomaticas: true, repoActualizaciones: '',
-  equipo: '', prefijoFactura: '000-001-01-', sync: { repo: '', token: '' },
+  equipo: '', prefijoFactura: '000-001-01-', sync: { repo: '', token: '' }, impresora: { nombre: '', columnas: 48, acentos: true },
 };
 try { Object.assign(CFG, JSON.parse(fs.readFileSync(CFG_FILE, 'utf8'))); } catch (e) { }
 if (!CFG.sync || typeof CFG.sync !== 'object') CFG.sync = { repo: '', token: '' };
+if (!CFG.impresora || typeof CFG.impresora !== 'object') CFG.impresora = { nombre: '', columnas: 48, acentos: true };
+const IMP = require('./impresion.js');
 if (!CFG.equipo) CFG.equipo = os.hostname() || 'Computadora';
 function guardarCfg() { try { fs.writeFileSync(CFG_FILE, JSON.stringify(CFG, null, 2)); } catch (e) { log('No se pudo guardar config.json:', e.message); } }
 
@@ -438,6 +440,44 @@ async function configurarSync(repo, token) {
   sincronizar().catch(() => { });
 }
 
+/* ---------------- impresión directa en la térmica (ESC/POS) ---------------- */
+let LOGO_T = null;
+function logoParaImprimir() {
+  if (LOGO_T === null) { try { LOGO_T = IMP.logoRaster(require('./logo_ticket.js'), 360); } catch (e) { log('Logo para imprimir:', e.message); LOGO_T = undefined; } }
+  return LOGO_T || null;
+}
+function bytesTrabajo(job) {
+  const o = { cols: Number(CFG.impresora.columnas) || 48, acentos: CFG.impresora.acentos !== false };
+  const A = readDoc('ajustes/negocio') || {};
+  if (job.tipo === 'factura') {
+    const v = readDoc('ventas/' + String(job.ventaId || ''));
+    if (!v) throw new Error('No se encontró la factura');
+    return IMP.facturaVK(v, A, { ...o, logo: logoParaImprimir() });
+  }
+  if (job.tipo === 'reporte') return IMP.reporte(Array.isArray(job.lineas) ? job.lineas.slice(0, 800) : [], o);
+  if (job.tipo === 'prueba') return IMP.prueba({ ...o, logo: logoParaImprimir() }, A.nombre || 'Vikingos Licor Store');
+  throw new Error('Tipo de impresión desconocido');
+}
+async function detectarImpresora() {
+  if (process.platform !== 'win32' || CFG.impresora.nombre || CFG.impresora.noDetectar) return;
+  try {
+    const lista = await IMP.listarImpresoras();
+    const NO = /pdf|xps|onenote|fax|enviar a|send to|anydesk|microsoft print/i;
+    const SI = /(pos|xp-?\s?\d|80\s?mm|58\s?mm|thermal|t[eé]rmica|receipt|recibo|ticket|tm-?[tm]\d|tm-?t|rp-?\d|zj-?\d|gprinter|3nstar|bixolon|tsp\d|epson tm|sat\s?\d|xprinter|hprt|rongta|sewoo|citizen ct)/i;
+    const cand = lista.filter(p => p && p.nombre && !NO.test(p.nombre + ' ' + (p.driver || '')) && SI.test(p.nombre + ' ' + (p.driver || '')));
+    if (!cand.length) { log('Impresión directa: no se encontró una impresora térmica; elígela en Ajustes → Impresora térmica.'); return; }
+    const elegida = cand.find(p => p.predeterminada) || cand[0];
+    CFG.impresora = { nombre: elegida.nombre, columnas: /58\s?mm|zj-?58|pos-?58/i.test(elegida.nombre + ' ' + (elegida.driver || '')) ? 32 : 48, acentos: true };
+    guardarCfg(); log('Impresión directa activada automáticamente en:', elegida.nombre); emitir(['__estado']);
+  } catch (e) { log('Impresión directa: no se pudo revisar las impresoras:', e.message); }
+}
+async function imprimirDirecto(job) {
+  if (!CFG.impresora.nombre) throw new Error('No hay impresora configurada');
+  const bytes = bytesTrabajo(job);
+  if (process.env.VK_IMP_ARCHIVO) { fs.appendFileSync(process.env.VK_IMP_ARCHIVO, bytes); return; } // solo para pruebas
+  await IMP.enviar(CFG.impresora.nombre, bytes, DATA_DIR);
+}
+
 /* ---------------- http ---------------- */
 function bodyCrudo(req, max) {
   return new Promise((res, rej) => {
@@ -472,7 +512,7 @@ async function api(req, res, url) {
     return send(res, 200, {
       version: VERSION, hayUsuarios: lista.length > 0, importable: importable(), yo: u ? publicUser(u) : null,
       usuarios: lista.filter(x => x.activo !== false).map(publicUser).sort((a, b) => a.nombre.localeCompare(b.nombre)),
-      equipo: CFG.equipo, prefijo: CFG.prefijoFactura, ips: ips(), puerto: CFG.puerto, sync: estadoSync(), ahora: Date.now(),
+      equipo: CFG.equipo, prefijo: CFG.prefijoFactura, impresoraDirecta: !!CFG.impresora.nombre, impresora: CFG.impresora.nombre || '', windows: process.platform === 'win32', ips: ips(), puerto: CFG.puerto, sync: estadoSync(), ahora: Date.now(),
     });
   }
   if (route === 'importar' && req.method === 'POST') {
@@ -612,6 +652,27 @@ async function api(req, res, url) {
     throw err(400, 'Operación desconocida');
   }
   if (route === 'siguiente' && req.method === 'POST') return send(res, 200, siguienteFactura());
+  if (route === 'imprimir' && req.method === 'POST') {
+    const b = await body(req);
+    if (!CFG.impresora.nombre) throw err(400, 'No hay impresora térmica configurada en la computadora de la tienda');
+    try { await imprimirDirecto(b); } catch (e) { log('Impresión directa:', e.message); throw err(502, e.message); }
+    return send(res, 200, { ok: true });
+  }
+  if (route === 'impresoras' && req.method === 'GET') {
+    if (!isAdmin(u)) throw err(403, 'Solo el administrador');
+    let lista = [], error = null;
+    try { lista = await IMP.listarImpresoras(); } catch (e) { error = e.message; }
+    return send(res, 200, { lista, error, actual: CFG.impresora, windows: process.platform === 'win32' });
+  }
+  if (route === 'impresora' && req.method === 'POST') {
+    if (!isAdmin(u)) throw err(403, 'Solo el administrador');
+    const b = await body(req);
+    const cols = [32, 42, 48, 56, 64].includes(Number(b.columnas)) ? Number(b.columnas) : 48;
+    CFG.impresora = { nombre: String(b.nombre || '').slice(0, 200), columnas: cols, acentos: b.acentos !== false, noDetectar: !b.nombre };
+    guardarCfg(); log('Impresora directa:', CFG.impresora.nombre || '(ninguna)', cols, 'columnas');
+    emitir(['__estado']);
+    return send(res, 200, { ok: true, actual: CFG.impresora });
+  }
   if (route === 'equipo' && req.method === 'POST') {
     if (!isAdmin(u)) throw err(403, 'Solo el administrador');
     const b = await body(req);
@@ -780,6 +841,7 @@ server.listen(CFG.puerto, '0.0.0.0', () => {
   log(`En esta computadora: http://localhost:${CFG.puerto}`);
   for (const ip of ips()) log(`Desde celulares (mismo WiFi): http://${ip}:${CFG.puerto}`);
   respaldo('inicio');
+  setTimeout(() => detectarImpresora(), 5000);
   if (syncListo()) { SYNC.estado = 'esperando'; setTimeout(() => sincronizar().catch(() => { }), 3000); }
   setInterval(() => sincronizar().catch(() => { }), (Number(process.env.VK_SYNC_SEG) || 60) * 1000);
   if (CFG.actualizacionesAutomaticas !== false) {
