@@ -1,10 +1,10 @@
 {
- "version": "1.7.0",
- "publicado": "2026-11-23T13:47:00",
+ "version": "1.7.1",
+ "publicado": "2026-11-23T22:30:02",
  "archivos": [
   {
    "nombre": "server.js",
-   "sha256": "4660135e66701b1ef2a9986617e26ee54499e793b15969028b8e58307ef258e5",
+   "sha256": "394c2d4afc1e896049001d607b95df56ef74cfee4be42cd64a559ec3896b409b",
    "bytes": 50327
   },
   {
@@ -19,13 +19,13 @@
   },
   {
    "nombre": "impresion.js",
-   "sha256": "609164be78e7fcc144866f18644e347a039040f83b751c88979e40d4b4a9929c",
-   "bytes": 16389
+   "sha256": "9744fc1daf6e0e304d0e5f121fa1b7e5c531d73e8a3b140471a5f6305ff7df66",
+   "bytes": 16418
   },
   {
    "nombre": "app.html",
-   "sha256": "092311e5be87eb589cdfaa167e8918053ef469b310ea2d85dc1775129ce6d4e0",
-   "bytes": 232750
+   "sha256": "62848f153d4d6f1fff2d63b969e83839ac1316b88c3b1667ea6ed5d3b1672f54",
+   "bytes": 233104
   },
   {
    "nombre": "lanzador.js",
@@ -73,5 +73,5 @@
    "bytes": 44609
   }
  ],
- "cambios": "Impresión directa en la térmica (ESC/POS): sin espacios en blanco y con corte automático, igual que la Casa de la Birria."
+ "cambios": "Botón \"P. compra\" para facturar al mismo precio que compra Vikingos (ej. Casa de la Birria)."
 }

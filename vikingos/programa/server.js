@@ -14,7 +14,7 @@ const crypto = require('crypto');
 process.removeAllListeners('warning');
 const { DatabaseSync } = require('node:sqlite');
 
-const VERSION = '1.7.0';
+const VERSION = '1.7.1';
 const REPO_ACTUALIZACIONES = 'jonavarela0525-cell/sistema-restaurante';
 const CARPETA_ACTUALIZACIONES = 'vikingos/';
 const BASE = __dirname;

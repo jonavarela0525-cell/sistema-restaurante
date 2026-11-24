@@ -167,7 +167,7 @@ dialog::backdrop{background:#0009}
    <aside class="ticket" id="ticket">
     <div class="pagos" id="modoT" style="grid-template-columns:1fr 1fr;margin:0 0 12px"><button data-m="n" class="on">Factura normal</button><button data-m="v">Ventas varias del día</button></div>
     <h3>Factura</h3>
-    <div class="pagos niv" id="niveles" style="grid-template-columns:repeat(3,1fr)"><button data-n="n" class="on">Precio normal</button><button data-n="d">Descuento</button><button data-n="m">Por mayor</button></div>
+    <div class="pagos niv" id="niveles" style="grid-template-columns:repeat(4,1fr)"><button data-n="n" class="on">Normal</button><button data-n="d">Descuento</button><button data-n="m">Por mayor</button><button data-n="c" title="Al mismo precio que compra Vikingos (ej. facturas de la Casa de la Birria)">P. compra</button></div>
     <div id="lines"></div>
     <div id="tots"></div>
     <div class="f2"><input id="cli" list="clis" placeholder="Cliente (Consumidor final)" autocomplete="off"><datalist id="clis"></datalist><input id="rtn" placeholder="RTN (opcional)" inputmode="numeric"></div>
@@ -312,11 +312,12 @@ function renderPOS(){
  const list=P.filter(p=>(cat==='Todas'||(p.cat||'Otros')===cat)&&(!q||(p.nom+' '+p.cod).toLowerCase().includes(q)));
  $('#grid').innerHTML=list.length?list.map(p=>{const s=stock(p);return`<button class="prod" data-id="${esc(p.id)}" ${s<=0?'disabled':''}>${+p.fotoV?`<span class="ft"><img src="${esc(fotoURL(p))}" alt="" loading="lazy"></span>`:''}<b>${esc(p.nom)}</b><span class="st ${s<=(+p.min||0)?'low':''}">${s<=0?'Agotado':s+' en existencia'}</span><span class="pr">${L(precioDe(p,nivel))}${nivelDe(p,nivel)!=='n'?`<s>${L(p.precio)}</s>`:''}</span></button>`}).join(''):`<div class="empty" style="grid-column:1/-1">${P.length?'Ningún producto coincide con la búsqueda.':'Todavía no hay productos. Créalos en Inventario.'}</div>`;
 }
-const NIV={n:'Normal',d:'Descuento',m:'Por mayor'};let nivel='n';
-const precioDe=(p,nv)=>nv==='d'&&+p.precioDesc>0?+p.precioDesc:nv==='m'&&+p.precioMay>0?+p.precioMay:+p.precio;
-const nivelDe=(p,nv)=>nv==='d'&&+p.precioDesc>0?'d':nv==='m'&&+p.precioMay>0?'m':'n';
+const NIV={n:'Normal',d:'Descuento',m:'Por mayor',c:'De compra'};let nivel='n';
+const precioDe=(p,nv)=>nv==='d'&&+p.precioDesc>0?+p.precioDesc:nv==='m'&&+p.precioMay>0?+p.precioMay:nv==='c'&&+p.costo>0?+p.costo:+p.precio;
+const nivelDe=(p,nv)=>nv==='d'&&+p.precioDesc>0?'d':nv==='m'&&+p.precioMay>0?'m':nv==='c'&&+p.costo>0?'c':'n';
 $('#niveles').onclick=e=>{const b=e.target.closest('button');if(!b)return;nivel=b.dataset.n;$$('#niveles button').forEach(x=>x.classList.toggle('on',x===b));
  cart.forEach(it=>{const p=P.find(x=>x.id===it.id);if(p){it.nivel=nivelDe(p,nivel);it.precio=precioDe(p,nivel);it.normal=+p.precio}});
+ if(nivel==='c'&&!$('#cli').value.trim()){$('#cli').value='La Casa de la Birria';if(!$('#rtn').value.trim())$('#rtn').value='07031996020067'}
  const sin=cart.filter(it=>it.nivel!==nivel).length;if(nivel!=='n'&&sin)toast(sin+' producto(s) no tienen precio '+NIV[nivel].toLowerCase()+'; se dejan a precio normal');
  renderPOS();renderCart()};
 function totals(items){
@@ -325,7 +326,7 @@ function totals(items){
  return{t,b15,i15,b18,i18,ex};
 }
 function renderCart(){
- $('#lines').innerHTML=cart.length?cart.map((it,i)=>`<div class="line"><div class="n">${esc(it.nom)}<small>${L(it.precio)} c/u</small>${(()=>{const p=P.find(x=>x.id===it.id);if(!p)return'';const op=['n','d','m'].filter(k=>k==='n'||nivelDe(p,k)===k);return op.length>1?`<select data-i="${i}" aria-label="Tipo de precio">${op.map(k=>`<option value="${k}" ${it.nivel===k?'selected':''}>${NIV[k]} · ${L(precioDe(p,k))}</option>`).join('')}</select>`:''})()}</div><div class="qty"><button data-d="-1" data-i="${i}" aria-label="Menos">−</button><span>${it.cant}</span><button data-d="1" data-i="${i}" aria-label="Más">+</button></div><div class="t">${L(it.precio*it.cant)}</div></div>`).join(''):'<div class="empty">Toca un producto para agregarlo.</div>';
+ $('#lines').innerHTML=cart.length?cart.map((it,i)=>`<div class="line"><div class="n">${esc(it.nom)}<small>${L(it.precio)} c/u</small>${(()=>{const p=P.find(x=>x.id===it.id);if(!p)return'';const op=['n','d','m','c'].filter(k=>k==='n'||nivelDe(p,k)===k);return op.length>1?`<select data-i="${i}" aria-label="Tipo de precio">${op.map(k=>`<option value="${k}" ${it.nivel===k?'selected':''}>${NIV[k]} · ${L(precioDe(p,k))}</option>`).join('')}</select>`:''})()}</div><div class="qty"><button data-d="-1" data-i="${i}" aria-label="Menos">−</button><span>${it.cant}</span><button data-d="1" data-i="${i}" aria-label="Más">+</button></div><div class="t">${L(it.precio*it.cant)}</div></div>`).join(''):'<div class="empty">Toca un producto para agregarlo.</div>';
  const T=totals(cart);
  $('#tots').innerHTML=(T.b15?`<div class="tot"><span>Gravado 15%</span><span>${L(T.b15)}</span></div><div class="tot"><span>ISV 15%</span><span>${L(T.i15)}</span></div>`:'')+(T.b18?`<div class="tot"><span>Gravado 18%</span><span>${L(T.b18)}</span></div><div class="tot"><span>ISV 18%</span><span>${L(T.i18)}</span></div>`:'')+(T.ex?`<div class="tot"><span>Exento</span><span>${L(T.ex)}</span></div>`:'')+(()=>{const ah=cart.reduce((a,it)=>a+Math.max(0,((it.normal||it.precio)-it.precio)*it.cant),0);return ah>0.004?`<div class="tot" style="color:#2d7a3e"><span>Ahorro del cliente</span><span>${L(ah)}</span></div>`:''})()+`<div class="tot big"><span>Total</span><span>${L(T.t)}</span></div>`;
  const n=cart.reduce((a,b)=>a+b.cant,0);$('#fltN').textContent=n?`Ver ticket · ${n} artículo${n>1?'s':''}`:'Ticket vacío';$('#fltT').textContent=L(T.t);
@@ -375,7 +376,7 @@ $('#cobrar').onclick=async()=>{
 /* recibo */
 function rcptHTML(v){
  const A=AJ;const ahorro=v.items.reduce((a,x)=>a+Math.max(0,((x.normal||x.precio)-x.precio)*x.cant),0);
- const it=v.items.map(x=>`<div>${esc(x.nom)}${x.nivel&&x.nivel!=='n'?' <small>('+(x.nivel==='m'?'por mayor':'descuento')+')</small>':''}</div><div class="rw"><span>${x.cant} x ${L(x.precio)}</span><span>${L(x.cant*x.precio)}</span></div>`).join('');
+ const it=v.items.map(x=>`<div>${esc(x.nom)}${x.nivel&&x.nivel!=='n'?' <small>('+({m:'por mayor',d:'descuento',c:'precio de compra'}[x.nivel]||'')+')</small>':''}</div><div class="rw"><span>${x.cant} x ${L(x.precio)}</span><span>${L(x.cant*x.precio)}</span></div>`).join('');
  const r=(a,b)=>`<div class="rw"><span>${a}</span><span>${b}</span></div>`;
  return`<div class="rcpt"><img src="${LOGO}" alt=""><div class="c"><b>${esc(A.nombre||'Vikingos Licor Store')}</b><br>${A.rtn?'RTN: '+esc(A.rtn)+'<br>':''}${A.dir?esc(A.dir)+'<br>':''}${A.tel?'Tel: '+esc(A.tel):''}</div><hr>
  ${A.cai?'<div>CAI: '+esc(A.cai)+'</div>':''}<div>Factura: <b>${esc(v.factura)}</b></div><div>Fecha: ${new Date(v.fecha).toLocaleString('es-HN')}</div><div>Cliente: ${esc(v.cliente)}</div>${v.rtn?'<div>RTN cliente: '+esc(v.rtn)+'</div>':''}<hr>${it}<hr>

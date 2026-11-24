@@ -263,7 +263,7 @@ function facturaVK(v, A, o) {
   for (const it of v.items || []) {
     const marca = Number(it.isv) === 18 ? '*' : Number(it.isv) === 0 ? '(E)' : '';
     t.dos(`${it.cant}x ${it.nom}${marca}`, n2(it.precio * it.cant));
-    if (it.nivel && it.nivel !== 'n') t.ln('   (' + (it.nivel === 'm' ? 'precio por mayor' : 'precio con descuento') + ')');
+    if (it.nivel && it.nivel !== 'n') t.ln('   (' + ({ m: 'precio por mayor', d: 'precio con descuento', c: 'precio de compra' }[it.nivel] || '') + ')');
     ahorro += Math.max(0, ((Number(it.normal) || it.precio) - it.precio) * it.cant);
   }
   t.linea();
